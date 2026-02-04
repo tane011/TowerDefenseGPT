@@ -23,7 +23,7 @@ export class Enemy {
     this.radius = def.radius ?? 10;
     this.tags = new Set(def.tags || []);
     if (this.tags.has("boss")) {
-      const slowMul = def.bossSpeedMul ?? 0.7;
+      const slowMul = def.bossSpeedMul ?? 0.6;
       this.baseSpeed *= slowMul;
     }
 
@@ -46,6 +46,9 @@ export class Enemy {
 
     this._shield = def.shield ?? 0; // absorbs damage first
     this._maxShield = def.shield ?? 0;
+    this.isFinalBoss = Boolean(opts.finalBoss);
+    this.finalBossMode = opts.finalBossMode ?? null;
+    this.finalBossId = opts.finalBossId ?? (this.isFinalBoss ? def.id : null);
 
     // Active status effects.
     // Shape: { type, duration, remaining, magnitude, tickEvery, tickTimer, mode }
@@ -66,6 +69,14 @@ export class Enemy {
       this.hp = this.maxHp;
       this.reward = Math.round(this.reward * Math.max(1, m * 0.6));
       this.radius = Math.round(this.radius * Math.min(1.25, 1 + (m - 1) * 0.2));
+    }
+    if (opts.hpMul && opts.hpMul !== 1) {
+      this.maxHp = Math.round(this.maxHp * opts.hpMul);
+      this.hp = this.maxHp;
+    }
+    if (opts.extraShield && opts.extraShield > 0) {
+      this._maxShield = Math.max(0, this._maxShield + opts.extraShield);
+      this._shield = Math.min(this._maxShield, this._shield + opts.extraShield);
     }
   }
 

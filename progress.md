@@ -173,3 +173,118 @@ Notes (2026-02-04):
 
 Tests (2026-02-04):
 - Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-coachmarks.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-coachmarks`
+
+Notes (2026-02-04):
+- Help panel now lists all keybinds for quick reference.
+- Fixed path locking for tier 3+ upgrades by tracing upgrade path roots from tier‑1 choices.
+- Upgrades cost more (global +25%) and upgraded towers scale stronger per applied upgrade.
+- Added Nightmare/Apocalypse modes with higher difficulty multipliers and Harbinger final boss.
+- Final bosses buffed with higher stats and unique base‑strike abilities; added Harbinger boss.
+- Support aura rings now render as distinct dashed cyan rings to avoid confusion with range rings.
+
+Notes (2026-02-04):
+- Added Settings card with QoL toggles (auto-start waves, show all ranges, show aura rings, reduce VFX) plus Reset Tips.
+- Settings persist via localStorage and apply to renderer/game state.
+- World settings now include VFX scale for render.
+
+Notes (2026-02-04):
+- Moved Help card below Logs and expanded Settings with many advanced toggles (grid, decor, path glow, vignette, projectiles, health bars, status glyphs/auras, boss rings/bar, reduce motion).
+- Renderer now respects settings for static layer, rings, status visuals, projectiles, and VFX motion scale.
+
+Tests (2026-02-04):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-coachmarks.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-settings-smoke`
+
+Notes (2026-02-04):
+- Moved Settings card below Help in the side panel.
+- Added new maps: Sunken Canals, Aurora Ridge, Bastion Circuit, Shattered Causeway with unique layouts and decor.
+
+Notes (2026-02-04):
+- Removed the "(active)" suffix from wave HUD/side panel to keep layout stable.
+- Fixed ally stat inflation by deep-cloning summon ability data during stat computation.
+- Added Prism Beam late-game DPS tower with warm-up/decay beam damage and new beam VFX + sprite.
+
+Tests (2026-02-04):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-ally.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-ally-fix`
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-beam.json --click-selector "#start-btn" --iterations 1 --pause-ms 250 --screenshot-dir output/web-game-beam`
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-massive.json --click-selector "#start-btn" --iterations 1 --pause-ms 240 --screenshot-dir output/web-game-massive`
+
+Notes (2026-02-04):
+- Fixed aura buffs mutating shared tower definitions (deep-clone aura buffs on stat compute) to prevent infinite buff escalation.
+
+Tests (2026-02-04):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-massive.json --click-selector "#start-btn" --iterations 1 --pause-ms 240 --screenshot-dir output/web-game-bufffix`
+
+Notes (2026-02-04):
+- Endgame towers now have x5 base cost and new tier‑4 upgrades with special abilities.
+- Final boss deaths trigger a long kill animation; victory screen is delayed until the animation finishes.
+- Added a victory overlay style for the end screen and exposed `pending_victory` in render_game_to_text.
+
+Tests (2026-02-04):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-massive.json --click-selector "#start-btn" --iterations 1 --pause-ms 240 --screenshot-dir output/web-game-endgame`
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-massive.json --click-selector "#start-btn" --iterations 1 --pause-ms 240 --screenshot-dir output/web-game-finalboss-delay`
+
+Notes (2026-02-04):
+- Moved Settings card below Help and added two more maps: Citadel Confluence (three lanes) and Wyrmcoil Basin (gauntlet).
+- Reworked newer maps for longer paths and tighter merges.
+
+Tests (2026-02-04):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-coachmarks.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-map-smoke`
+
+Notes (2026-02-04):
+- Added wave scaling by wave number (mode-driven hpScale + hpMul), and "seen enemy" shields that grow as waves progress.
+- Final bosses scale harder via new finalBossMult per mode; Apocalypse/Nightmare bosses now extremely high HP.
+- Added "All Paths" modifier to spawn each wave on all lanes (non-bosses).
+- Rebalanced towers globally: higher base cost (x1.35) and higher upgrade cost (x1.5) with stronger base/ability/summon stats.
+- Boss windups lengthened further and boss speed reduced to improve readability.
+- Tier crowns/pips/overlays are smaller and rendered in a separate pass to avoid recoil flash.
+- Maxed towers now show a colored "Maxed" panel instead of upgrades (path color).
+- Summoner towers now labeled role "summoner".
+- Added new maps: Rift Gardens, Ember Labyrinth, Skybreak Junction.
+
+Tests (2026-02-04):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-smoke.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-balance`
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-upgrade-max.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-maxed`
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-select.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-select`
+
+Notes (2026-02-04):
+- Added shield badge over enemy health bars to show shield amount.
+- Rebalanced costs/stats again for higher-impact towers (higher costs + stronger damage/ability/summons).
+- Increased per-mode HP scaling and final-boss multipliers for harder late-game difficulty.
+- Default seen-enemy shield scaling increased for better visibility.
+
+Notes (2026-02-04):
+- Added shield badge overlay above enemy health bars (shows shield value).
+- Tuned balance again: higher tower/upgrade costs and stronger base/ability/summon scaling; increased per-mode HP scaling and final boss multipliers.
+
+Tests (2026-02-04):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-shield.json --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-shield`
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-smoke.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-shield-2`
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-shield-3.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-shield-3`
+
+Notes (2026-02-04):
+- Added two late-game DPS towers: Obliterator (single-target heavy) and Sunbreaker (splash heavy) with branching upgrades.
+- Added unique emblems for Obliterator and Sunbreaker sprites.
+
+Notes (2026-02-04):
+- Added two late-game DPS towers: Obliterator (single-target heavy) and Sunbreaker (splash heavy) with branching upgrades.
+
+Tests (2026-02-04):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5174 --actions-file /tmp/td-actions-smoke.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-late-dps`
+
+Notes (2026-02-04):
+- Fixed summon stat runaway by deep-cloning ability.summon in computeStats (prevents infinite ally stats).
+- HUD wave line no longer appends "(active)" to avoid layout shifting.
+
+Tests (2026-02-04):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-smoke.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-ally-fix`
+
+Notes (2026-02-04):
+- Added Prism Beam late-game DPS tower with continuous beam damage and upgrades.
+- Implemented beam VFX and beam damage handling (damage per second + optional on-hit effects).
+
+Tests (2026-02-04):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-beam`
+
+Notes (2026-02-04):
+- Added warm-up mechanic for beam towers (ramp up damage while locked; decays when idle).
+- Removed "(active)" suffix from side-panel wave counter to avoid layout shift.

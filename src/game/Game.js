@@ -31,6 +31,7 @@ export class Game {
     this.modeDef = null;
     this.world = { towers: [], enemies: [], allies: [], projectiles: [], vfx: [], modifiers: null };
     this._towerByTile = new Map();
+    this._seenEnemyIds = new Set();
 
     this._uiRenderState = { ghost: null };
     this.modifiers = [];
@@ -56,9 +57,14 @@ export class Game {
       awardMoney: (amt) => this.awardMoney(amt),
       damageBase: (amt) => this.damageBase(amt),
       log: (msg) => this.log(msg),
+      onFinalBossDeath: (enemy, duration) => this._handleFinalBossDeath(enemy, duration),
     });
     this._waveSystem = new WaveSystem({
-      createWave: (waveNumber) => this._data.createWave(waveNumber, this._rng, this.map, this.modeDef, this.modifierState),
+      createWave: (waveNumber) => {
+        const wave = this._data.createWave(waveNumber, this._rng, this.map, this.modeDef, this.modifierState, this._seenEnemyIds);
+        for (const ev of wave.events || []) this._seenEnemyIds.add(ev.enemyId);
+        return wave;
+      },
       spawnEnemy: (enemyId, pathIndex, opts) => this.spawnEnemy(enemyId, pathIndex, opts),
       awardMoney: (amt) => this.awardMoney(amt),
       log: (msg) => this.log(msg),
@@ -88,8 +94,10 @@ export class Game {
     this.world.allies.length = 0;
     this.world.projectiles.length = 0;
     this.world.vfx.length = 0;
+    this.world.settings = this.state.settings;
     this._towerByTile = new Map();
     this._waveSystem.reset?.();
+    this._seenEnemyIds.clear();
 
     this.state.mode = "playing";
     this.state.paused = false;
@@ -98,12 +106,13 @@ export class Game {
     this.state.money = Math.max(0, Math.round((baseMoney + this.modifierState.start.moneyAdd) * this.modifierState.start.moneyMul));
     this.state.lives = Math.max(1, Math.round((baseLives + this.modifierState.start.livesAdd) * this.modifierState.start.livesMul));
     this.state.waveNumber = 0;
-    this.state.autoNextWave = false;
+    this.state.autoNextWave = this.state.settings?.autoStartWaves ?? false;
     this.state.gameModeId = modeDef?.id ?? null;
     this.state.selectedTowerId = null;
     this.state.buildTowerId = null;
     this.state.inWave = false;
     this.state.time = 0;
+    this.state.pendingVictory = null;
 
     const modLabel = modifiers.length ? ` | Mods: ${modifiers.map((m) => m.name).join(", ")}` : "";
     this.log(`New run: ${this.map.name} — ${modeDef?.name || "Endless"}${modLabel}`);
@@ -141,6 +150,17 @@ export class Game {
     this.ui?.showGameOverWithTitle?.("Victory!", `Final boss defeated. ${name} complete.`);
   }
 
+  _handleFinalBossDeath(enemy, duration = 3) {
+    if (this.state.mode !== "playing") return;
+    if (this.state.pendingVictory) return;
+    const mode = this.modeDef;
+    this.state.pendingVictory = {
+      remaining: Math.max(0.6, duration),
+      mode,
+    };
+    this.log(`${enemy.name} defeated! Victory incoming...`);
+  }
+
   togglePause() {
     if (this.state.mode !== "playing") return;
     this.state.paused = !this.state.paused;
@@ -160,6 +180,7 @@ export class Game {
     const enemy = new Enemy(def, this.pathInfos[idx], opts);
     enemy.pathIndex = idx;
     applyEnemyModifiers(enemy, this.modifierState);
+    if (this._seenEnemyIds) this._seenEnemyIds.add(enemyId);
     return enemy;
   }
 
@@ -253,13 +274,16 @@ export class Game {
   getTowerCost(def) {
     const base = def?.cost ?? 0;
     const mul = this.modifierState?.tower?.costMul ?? 1;
-    return Math.max(0, Math.round(base * mul));
+    const balanceMul = 1.5;
+    const endgameMul = def?.endgame ? 5 : 1;
+    return Math.max(0, Math.round(base * mul * balanceMul * endgameMul));
   }
 
   getUpgradeCost(upgrade) {
     const base = upgrade?.cost ?? 0;
     const mul = this.modifierState?.tower?.upgradeCostMul ?? 1;
-    return Math.max(0, Math.round(base * mul));
+    const balanceMul = 1.7;
+    return Math.max(0, Math.round(base * mul * balanceMul));
   }
 
   placeTower(towerId, tx, ty) {
@@ -366,6 +390,14 @@ export class Game {
     }
 
     this.state.inWave = this._waveSystem.active;
+    if (this.state.pendingVictory) {
+      this.state.pendingVictory.remaining = Math.max(0, this.state.pendingVictory.remaining - dt);
+      if (this.state.pendingVictory.remaining <= 0 && !this.state.inWave && this.world.enemies.length === 0) {
+        const mode = this.state.pendingVictory.mode;
+        this.state.pendingVictory = null;
+        this.winRun(mode);
+      }
+    }
     this._syncUi();
   }
 
@@ -465,6 +497,7 @@ export class Game {
   }
 
   _computeUiRenderState() {
+    this._uiRenderState.settings = this.state.settings;
     const ghost = { x: 0, y: 0, ok: false, range: null };
     if (this.state.mode === "playing" && this.map && this.state.buildTowerId && this._input.mouse.inside) {
       const { tx, ty } = this.map.worldToTile(this._input.mouse.x, this._input.mouse.y);
@@ -520,6 +553,7 @@ export class Game {
       lives: this.state.lives,
       wave_cleared: this.state.waveNumber,
       wave_active: this.state.inWave,
+      pending_victory: this.state.pendingVictory ? Math.round(this.state.pendingVictory.remaining * 10) / 10 : null,
       build_selection: this.state.buildTowerId,
       game_mode: this.modeDef
         ? {

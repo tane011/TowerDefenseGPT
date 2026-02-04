@@ -4,7 +4,7 @@ function roundThreat(v) {
   return Math.round(v * 10) / 10;
 }
 
-export function createWave(waveNumber, rng, map, enemyDefs, mode = null, modifiers = null) {
+export function createWave(waveNumber, rng, map, enemyDefs, mode = null, modifiers = null, seenEnemyIds = null) {
   const paths = map?.paths?.length ? map.paths.length : 1;
   const t = (waveNumber - 1) / 10;
   const isFinal = Boolean(mode?.totalWaves && waveNumber >= mode.totalWaves);
@@ -14,6 +14,12 @@ export function createWave(waveNumber, rng, map, enemyDefs, mode = null, modifie
   const intervalMul = (difficulty.intervalMul ?? 1) * (waveMods.intervalMul ?? 1);
   const eliteEvery = mode?.eliteEvery ?? 5;
   const bossEvery = mode?.bossEvery ?? 10;
+  const seenSet = seenEnemyIds instanceof Set ? seenEnemyIds : new Set(seenEnemyIds || []);
+  const hpScale = difficulty.hpScale ?? 0.025;
+  const hpMul = (difficulty.hpMul ?? 1) * (1 + waveNumber * hpScale);
+  const seenShieldBase = difficulty.seenShieldBase ?? 8;
+  const seenShieldScale = difficulty.seenShieldScale ?? 1.6;
+  const seenShieldMul = difficulty.seenShieldMul ?? 1;
 
   // Budget grows roughly linearly, with a small acceleration.
   const baseBudget = 12 + waveNumber * 8 + Math.floor(waveNumber * waveNumber * 0.25) + (isFinal ? 25 : 0);
@@ -55,12 +61,16 @@ export function createWave(waveNumber, rng, map, enemyDefs, mode = null, modifie
     const pathIndex = randInt(rng, 0, paths - 1);
 
     for (let i = 0; i < count; i++) {
-      events.push({ t: time, enemyId, pathIndex });
+      const opts = { hpMul };
+      if (seenSet.has(enemyId)) {
+        opts.extraShield = Math.round((seenShieldBase + waveNumber * seenShieldScale) * seenShieldMul);
+      }
+      events.push({ t: time, enemyId, pathIndex, opts });
       time += interval;
     }
     time += 0.7;
     remaining -= count * cost;
-    threat += (def.threat ?? 1) * count;
+    threat += (def.threat ?? 1) * count * hpMul;
     if (remaining <= 0) break;
   }
 
@@ -74,13 +84,17 @@ export function createWave(waveNumber, rng, map, enemyDefs, mode = null, modifie
     elitePool.push({ item: "grunt", w: 1 });
     const eliteId = pickWeighted(rng, elitePool);
     const eliteMult = (1.65 + t * 0.2) * (difficulty.eliteMult ?? 1) * (waveMods.eliteMultMul ?? 1);
+    const eliteOpts = { eliteMult, hpMul };
+    if (seenSet.has(eliteId)) {
+      eliteOpts.extraShield = Math.round((seenShieldBase + waveNumber * seenShieldScale) * seenShieldMul);
+    }
     events.push({
       t: Math.max(0.5, time - 0.4),
       enemyId: eliteId,
       pathIndex: randInt(rng, 0, paths - 1),
-      opts: { eliteMult },
+      opts: eliteOpts,
     });
-    threat += (enemyDefs[eliteId].threat ?? 1) * eliteMult;
+    threat += (enemyDefs[eliteId].threat ?? 1) * eliteMult * hpMul;
   }
 
   // Boss every 10 waves (rotating pool) unless the mode defines a final boss wave.
@@ -92,26 +106,35 @@ export function createWave(waveNumber, rng, map, enemyDefs, mode = null, modifie
     if (waveNumber >= 30) bossPool.push({ item: "colossus", w: 2 });
     const bossId = pickWeighted(rng, bossPool);
     const bossMult = (1 + Math.min(0.25, t * 0.1)) * (difficulty.bossMult ?? 1) * (waveMods.bossMultMul ?? 1);
+    const bossOpts = { eliteMult: bossMult, hpMul };
+    if (seenSet.has(bossId)) {
+      bossOpts.extraShield = Math.round((seenShieldBase + waveNumber * seenShieldScale) * seenShieldMul);
+    }
     events.push({
       t: Math.max(1, time + 0.3),
       enemyId: bossId,
       pathIndex: randInt(rng, 0, paths - 1),
-      opts: { eliteMult: bossMult },
+      opts: bossOpts,
     });
-    threat += (enemyDefs[bossId].threat ?? 10) * bossMult;
+    threat += (enemyDefs[bossId].threat ?? 10) * bossMult * hpMul;
   }
 
   // Final boss wave injection (mode-driven).
   if (isFinal && mode?.finalBoss) {
     const bossId = mode.finalBoss;
-    const bossMult = (1.25 + Math.min(0.35, t * 0.12)) * (difficulty.bossMult ?? 1) * (waveMods.bossMultMul ?? 1);
+    const bossMult =
+      (1.25 + Math.min(0.35, t * 0.12)) * (difficulty.bossMult ?? 1) * (difficulty.finalBossMult ?? 1) * (waveMods.bossMultMul ?? 1);
+    const finalOpts = { eliteMult: bossMult, hpMul, finalBoss: true, finalBossMode: mode?.id ?? null };
+    if (seenSet.has(bossId)) {
+      finalOpts.extraShield = Math.round((seenShieldBase + waveNumber * seenShieldScale) * seenShieldMul);
+    }
     events.push({
       t: Math.max(1, time + 0.6),
       enemyId: bossId,
       pathIndex: randInt(rng, 0, paths - 1),
-      opts: { eliteMult: bossMult },
+      opts: finalOpts,
     });
-    threat += (enemyDefs[bossId]?.threat ?? 12) * bossMult;
+    threat += (enemyDefs[bossId]?.threat ?? 12) * bossMult * hpMul;
   }
 
   const rewardBase = 18 + waveNumber * 4 + (isFinal ? 40 : 0);
@@ -130,13 +153,17 @@ export function createWave(waveNumber, rng, map, enemyDefs, mode = null, modifie
     elitePool.push({ item: "grunt", w: 1 });
     const eliteId = pickWeighted(rng, elitePool);
     const eliteMult = (1.45 + t * 0.15) * (difficulty.eliteMult ?? 1) * (waveMods.eliteMultMul ?? 1);
+    const eliteOpts = { eliteMult, hpMul };
+    if (seenSet.has(eliteId)) {
+      eliteOpts.extraShield = Math.round((seenShieldBase + waveNumber * seenShieldScale) * seenShieldMul);
+    }
     events.push({
       t: Math.max(0.5, time + 0.2),
       enemyId: eliteId,
       pathIndex: randInt(rng, 0, paths - 1),
-      opts: { eliteMult },
+      opts: eliteOpts,
     });
-    threat += (enemyDefs[eliteId].threat ?? 1) * eliteMult;
+    threat += (enemyDefs[eliteId].threat ?? 1) * eliteMult * hpMul;
   }
 
   // Duplicate spawns onto another path occasionally.
@@ -152,6 +179,20 @@ export function createWave(waveNumber, rng, map, enemyDefs, mode = null, modifie
       }
     }
     events.push(...dupes);
+  }
+
+  // Spawn the same events on all paths (adds N-1 copies per event).
+  if (waveMods.spawnAllPaths && paths > 1) {
+    const extra = [];
+    for (const ev of events) {
+      const def = enemyDefs[ev.enemyId];
+      if (def?.tags?.includes?.("boss")) continue;
+      for (let p = 0; p < paths; p++) {
+        if (p === ev.pathIndex) continue;
+        extra.push({ ...ev, pathIndex: p, opts: ev.opts ? { ...ev.opts } : undefined });
+      }
+    }
+    events.push(...extra);
   }
   const summary = summarize(events);
 

@@ -75,7 +75,7 @@ export class WaveSystem {
 
       const mode = this._getMode?.();
       if (mode?.totalWaves && waveNum >= mode.totalWaves) {
-        this._onVictory?.(mode);
+        if (!this._state.pendingVictory) this._onVictory?.(mode);
       }
     }
   }

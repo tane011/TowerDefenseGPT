@@ -58,6 +58,7 @@ const DEFAULT_STATE = {
     rewardBonusAdd: 0,
     extraEliteChance: 0,
     duplicateSpawns: false,
+    spawnAllPaths: false,
   },
 };
 
@@ -253,4 +254,5 @@ function applyWave(target, src) {
   for (const key of addKeys) if (typeof src[key] === "number") target[key] += src[key];
 
   if (typeof src.duplicateSpawns === "boolean") target.duplicateSpawns = target.duplicateSpawns || src.duplicateSpawns;
+  if (typeof src.spawnAllPaths === "boolean") target.spawnAllPaths = target.spawnAllPaths || src.spawnAllPaths;
 }

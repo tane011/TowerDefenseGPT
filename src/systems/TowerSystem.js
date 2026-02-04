@@ -1,4 +1,4 @@
-import { dist2 } from "../core/math.js";
+import { dist2, clamp } from "../core/math.js";
 import { Projectile } from "../world/Projectile.js";
 
 function chooseTarget(stats, inRange, rng, towerX, towerY) {
@@ -98,6 +98,40 @@ export class TowerSystem {
       }
 
       if (stats.aura) continue; // Support towers skip standard firing.
+      if (stats.beam) {
+        const target = chooseTarget(stats, inRange, this._rng, tower.x, tower.y);
+        const warmupDuration = Math.max(0.2, stats.beam.warmupDuration ?? 1.6);
+        const warmupMin = clamp(stats.beam.warmupMin ?? 0.35, 0.1, 1);
+        const decayDuration = Math.max(0.2, stats.beam.decayDuration ?? warmupDuration * 0.8);
+        if (target) {
+          tower._beamWarmup = clamp((tower._beamWarmup ?? 0) + dt / warmupDuration, 0, 1);
+          tower.aimAngle = Math.atan2(target.y - tower.y, target.x - tower.x);
+          const warmup = tower._beamWarmup ?? 0;
+          const warmupMul = warmupMin + (1 - warmupMin) * warmup;
+          const damage = Math.max(0, stats.damage) * warmupMul * dt;
+          target.takeDamage(damage, stats.damageType);
+          tower._beamFxTimer = (tower._beamFxTimer ?? 0) - dt;
+          const effectInterval = stats.beam.effectInterval ?? 0.6;
+          if (tower._beamFxTimer <= 0) {
+            for (const fx of stats.onHitEffects || []) target.applyEffect(fx);
+            tower._beamFxTimer = effectInterval;
+          }
+          world.vfx.push({
+            type: "beam",
+            x1: tower.x,
+            y1: tower.y,
+            x2: target.x,
+            y2: target.y,
+            color: vfxColorForDamage(stats.damageType),
+            width: (stats.beam.width ?? 3) * (0.7 + 0.6 * (tower._beamWarmup ?? 0)),
+            life: 0.06,
+            maxLife: 0.06,
+          });
+        } else {
+          tower._beamWarmup = clamp((tower._beamWarmup ?? 0) - dt / decayDuration, 0, 1);
+        }
+        continue;
+      }
 
       tower.cooldown = Math.max(0, tower.cooldown - dt);
       if (tower.cooldown > 0) continue;

@@ -351,6 +351,57 @@ function towerSprite(defId, color) {
     ctx.moveTo(cx - 8, cy + 8);
     ctx.lineTo(cx + 6, cy + 2);
     ctx.stroke();
+  } else if (defId === "obliterator") {
+    ctx.strokeStyle = "rgba(231,236,255,0.92)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 11, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(8,10,18,0.6)";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(cx - 12, cy - 10);
+    ctx.lineTo(cx, cy - 2);
+    ctx.lineTo(cx + 12, cy - 10);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx - 12, cy + 10);
+    ctx.lineTo(cx, cy + 2);
+    ctx.lineTo(cx + 12, cy + 10);
+    ctx.stroke();
+  } else if (defId === "sunbreaker") {
+    ctx.strokeStyle = "rgba(251,191,36,0.95)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 10, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(251,191,36,0.75)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = 0; i < 8; i++) {
+      const ang = (Math.PI * 2 * i) / 8;
+      ctx.moveTo(cx + Math.cos(ang) * 4, cy + Math.sin(ang) * 4);
+      ctx.lineTo(cx + Math.cos(ang) * 14, cy + Math.sin(ang) * 14);
+    }
+    ctx.stroke();
+  } else if (defId === "beamer") {
+    ctx.strokeStyle = "rgba(167,139,250,0.95)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 12, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(231,236,255,0.75)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx - 12, cy);
+    ctx.lineTo(cx + 12, cy);
+    ctx.moveTo(cx, cy - 12);
+    ctx.lineTo(cx, cy + 12);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(167,139,250,0.85)";
+    ctx.beginPath();
+    ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+    ctx.fill();
   } else if (defId === "rocketpod") {
     ctx.fillStyle = "rgba(8,10,18,0.6)";
     pathRoundRect(ctx, cx - 10, cy - 8, 20, 6, 3);
@@ -443,7 +494,8 @@ function enemySprite(defId, color) {
   const base = hexToRgb(color);
   const cx = size / 2;
   const cy = size / 2;
-  const r = defId === "golem" || defId === "colossus" || defId === "overlord" ? 26 : 22;
+  const r =
+    defId === "golem" || defId === "colossus" || defId === "overlord" || defId === "harbinger" ? 26 : 22;
 
   drawBody(ctx, cx, cy, r, base);
   drawCore(ctx, cx, cy + r * 0.1, r * 0.28, rgbToCss(mix(base, { r: 255, g: 255, b: 255 }, 0.2), 0.7));

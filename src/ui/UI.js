@@ -71,6 +71,25 @@ const COACHMARK_STEPS = [
   },
 ];
 
+const DEFAULT_SETTINGS = {
+  autoStartWaves: false,
+  showAllRanges: false,
+  showAuraRings: true,
+  vfxScale: 1,
+  reduceMotion: false,
+  showGrid: true,
+  showDecor: true,
+  showPathGlow: true,
+  showVignette: true,
+  showProjectiles: true,
+  showEnemyHealthBars: true,
+  showAllyHealthBars: true,
+  showStatusGlyphs: true,
+  showStatusAuras: true,
+  showBossRings: true,
+  showBossBar: true,
+};
+
 export class UI {
   constructor({ data, game }) {
     this._data = data;
@@ -110,6 +129,23 @@ export class UI {
       coachmarkProgress: document.getElementById("coachmark-progress"),
       coachmarkNextBtn: document.getElementById("coachmark-next"),
       coachmarkSkipBtn: document.getElementById("coachmark-skip"),
+      settingAutoWaves: document.getElementById("setting-auto-waves"),
+      settingShowRanges: document.getElementById("setting-show-ranges"),
+      settingShowAuras: document.getElementById("setting-show-auras"),
+      settingReduceVfx: document.getElementById("setting-reduce-vfx"),
+      settingReduceMotion: document.getElementById("setting-reduce-motion"),
+      settingShowGrid: document.getElementById("setting-show-grid"),
+      settingShowDecor: document.getElementById("setting-show-decor"),
+      settingShowPathGlow: document.getElementById("setting-show-path-glow"),
+      settingShowVignette: document.getElementById("setting-show-vignette"),
+      settingShowProjectiles: document.getElementById("setting-show-projectiles"),
+      settingShowEnemyHp: document.getElementById("setting-show-enemy-hp"),
+      settingShowAllyHp: document.getElementById("setting-show-ally-hp"),
+      settingShowStatusGlyphs: document.getElementById("setting-show-status-glyphs"),
+      settingShowStatusAuras: document.getElementById("setting-show-status-auras"),
+      settingShowBossRings: document.getElementById("setting-show-boss-rings"),
+      settingShowBossBar: document.getElementById("setting-show-boss-bar"),
+      settingResetCoachmarks: document.getElementById("setting-reset-coachmarks"),
 
       money: document.getElementById("stat-money"),
       lives: document.getElementById("stat-lives"),
@@ -143,6 +179,8 @@ export class UI {
       upgradeNameById: new Map(),
       tiers: new Map(), // tier -> { wrap }
       upgradeEmpty: null,
+      upgradeMaxTitle: null,
+      upgradeMaxSub: null,
     };
 
     this._tutorial = {
@@ -156,6 +194,8 @@ export class UI {
       step: 0,
       pausedBefore: null,
     };
+
+    this._settings = this._loadSettings();
   }
 
   init() {
@@ -191,12 +231,18 @@ export class UI {
     // Coachmarks.
     this._bindCoachmarks();
 
+    // Settings.
+    this._bindSettings();
+    this._syncSettingsUi();
+    this._applySettings();
+
     this._els.startBtn.addEventListener("click", () => {
       const mapId = this._els.mapSelect.value;
       const modeId = this._els.modeSelect.value;
       const modifierIds = [...this._modifierSelected];
       this._els.startScreen.classList.add("hidden");
       this._els.gameOver.classList.add("hidden");
+      this._els.gameOver.classList.remove("victory");
       this._game.newRun(mapId, modeId, modifierIds);
       this.refreshPaletteCosts();
       setTimeout(() => this.maybeShowCoachmarks(), 60);
@@ -204,6 +250,7 @@ export class UI {
 
     this._els.restartBtn.addEventListener("click", () => {
       this._els.gameOver.classList.add("hidden");
+      this._els.gameOver.classList.remove("victory");
       this._els.startScreen.classList.remove("hidden");
     });
 
@@ -322,6 +369,128 @@ export class UI {
     });
   }
 
+  _bindSettings() {
+    this._els.settingAutoWaves?.addEventListener("change", (ev) => {
+      this._settings.autoStartWaves = Boolean(ev.target.checked);
+      this._applySettings(true);
+    });
+    this._els.settingShowRanges?.addEventListener("change", (ev) => {
+      this._settings.showAllRanges = Boolean(ev.target.checked);
+      this._applySettings();
+    });
+    this._els.settingShowAuras?.addEventListener("change", (ev) => {
+      this._settings.showAuraRings = Boolean(ev.target.checked);
+      this._applySettings();
+    });
+    this._els.settingReduceVfx?.addEventListener("change", (ev) => {
+      this._settings.vfxScale = ev.target.checked ? 0.6 : 1;
+      this._applySettings();
+    });
+    this._els.settingReduceMotion?.addEventListener("change", (ev) => {
+      this._settings.reduceMotion = Boolean(ev.target.checked);
+      this._applySettings();
+    });
+    this._els.settingShowGrid?.addEventListener("change", (ev) => {
+      this._settings.showGrid = Boolean(ev.target.checked);
+      this._applySettings();
+    });
+    this._els.settingShowDecor?.addEventListener("change", (ev) => {
+      this._settings.showDecor = Boolean(ev.target.checked);
+      this._applySettings();
+    });
+    this._els.settingShowPathGlow?.addEventListener("change", (ev) => {
+      this._settings.showPathGlow = Boolean(ev.target.checked);
+      this._applySettings();
+    });
+    this._els.settingShowVignette?.addEventListener("change", (ev) => {
+      this._settings.showVignette = Boolean(ev.target.checked);
+      this._applySettings();
+    });
+    this._els.settingShowProjectiles?.addEventListener("change", (ev) => {
+      this._settings.showProjectiles = Boolean(ev.target.checked);
+      this._applySettings();
+    });
+    this._els.settingShowEnemyHp?.addEventListener("change", (ev) => {
+      this._settings.showEnemyHealthBars = Boolean(ev.target.checked);
+      this._applySettings();
+    });
+    this._els.settingShowAllyHp?.addEventListener("change", (ev) => {
+      this._settings.showAllyHealthBars = Boolean(ev.target.checked);
+      this._applySettings();
+    });
+    this._els.settingShowStatusGlyphs?.addEventListener("change", (ev) => {
+      this._settings.showStatusGlyphs = Boolean(ev.target.checked);
+      this._applySettings();
+    });
+    this._els.settingShowStatusAuras?.addEventListener("change", (ev) => {
+      this._settings.showStatusAuras = Boolean(ev.target.checked);
+      this._applySettings();
+    });
+    this._els.settingShowBossRings?.addEventListener("change", (ev) => {
+      this._settings.showBossRings = Boolean(ev.target.checked);
+      this._applySettings();
+    });
+    this._els.settingShowBossBar?.addEventListener("change", (ev) => {
+      this._settings.showBossBar = Boolean(ev.target.checked);
+      this._applySettings();
+    });
+    this._els.settingResetCoachmarks?.addEventListener("click", () => {
+      window.localStorage?.removeItem("td_coachmarks_seen_v1");
+      this._game?.log?.("Tutorial tips reset.");
+    });
+  }
+
+  _syncSettingsUi() {
+    if (this._els.settingAutoWaves) this._els.settingAutoWaves.checked = Boolean(this._settings.autoStartWaves);
+    if (this._els.settingShowRanges) this._els.settingShowRanges.checked = Boolean(this._settings.showAllRanges);
+    if (this._els.settingShowAuras) this._els.settingShowAuras.checked = this._settings.showAuraRings !== false;
+    if (this._els.settingReduceVfx) this._els.settingReduceVfx.checked = (this._settings.vfxScale ?? 1) < 1;
+    if (this._els.settingReduceMotion) this._els.settingReduceMotion.checked = Boolean(this._settings.reduceMotion);
+    if (this._els.settingShowGrid) this._els.settingShowGrid.checked = this._settings.showGrid !== false;
+    if (this._els.settingShowDecor) this._els.settingShowDecor.checked = this._settings.showDecor !== false;
+    if (this._els.settingShowPathGlow) this._els.settingShowPathGlow.checked = this._settings.showPathGlow !== false;
+    if (this._els.settingShowVignette) this._els.settingShowVignette.checked = this._settings.showVignette !== false;
+    if (this._els.settingShowProjectiles) this._els.settingShowProjectiles.checked = this._settings.showProjectiles !== false;
+    if (this._els.settingShowEnemyHp) this._els.settingShowEnemyHp.checked = this._settings.showEnemyHealthBars !== false;
+    if (this._els.settingShowAllyHp) this._els.settingShowAllyHp.checked = this._settings.showAllyHealthBars !== false;
+    if (this._els.settingShowStatusGlyphs) this._els.settingShowStatusGlyphs.checked = this._settings.showStatusGlyphs !== false;
+    if (this._els.settingShowStatusAuras) this._els.settingShowStatusAuras.checked = this._settings.showStatusAuras !== false;
+    if (this._els.settingShowBossRings) this._els.settingShowBossRings.checked = this._settings.showBossRings !== false;
+    if (this._els.settingShowBossBar) this._els.settingShowBossBar.checked = this._settings.showBossBar !== false;
+  }
+
+  _applySettings(logAuto = false) {
+    if (!this._game?.state) return;
+    this._game.state.settings = { ...DEFAULT_SETTINGS, ...this._settings };
+    if (this._game.world) this._game.world.settings = this._game.state.settings;
+    this._saveSettings();
+    if (this._game.state.mode === "playing") {
+      if (this._game.state.autoNextWave !== this._settings.autoStartWaves) {
+        this._game.state.autoNextWave = this._settings.autoStartWaves;
+        if (logAuto) this._game.log(this._settings.autoStartWaves ? "Auto waves: ON" : "Auto waves: OFF");
+      }
+    }
+  }
+
+  _loadSettings() {
+    try {
+      const raw = window.localStorage?.getItem("td_settings_v1");
+      if (!raw) return { ...DEFAULT_SETTINGS };
+      const parsed = JSON.parse(raw);
+      return { ...DEFAULT_SETTINGS, ...(parsed || {}) };
+    } catch {
+      return { ...DEFAULT_SETTINGS };
+    }
+  }
+
+  _saveSettings() {
+    try {
+      window.localStorage?.setItem("td_settings_v1", JSON.stringify(this._settings));
+    } catch {
+      // Ignore storage errors.
+    }
+  }
+
   _shiftCoachmark(delta) {
     const max = COACHMARK_STEPS.length - 1;
     if (delta > 0 && this._coachmarks.step >= max) {
@@ -422,7 +591,7 @@ export class UI {
     this._els.money.textContent = String(s.money);
     this._els.lives.textContent = String(s.lives);
     const waveSuffix = s.waveGoal ? ` / ${s.waveGoal}` : "";
-    this._els.wave.textContent = `${s.wave}${waveSuffix}${s.inWave ? " (active)" : ""}`;
+    this._els.wave.textContent = `${s.wave}${waveSuffix}`;
     this._els.threat.textContent = s.threat == null ? "-" : String(s.threat);
     this._els.toggleAutoBtn.textContent = `Auto: ${s.auto ? "On" : "Off"}`;
     this._els.nextWaveBtn.disabled = Boolean(s.inWave);
@@ -462,6 +631,8 @@ export class UI {
       this._selectedUi.upgradeNameById.clear();
       this._selectedUi.tiers.clear();
       this._selectedUi.upgradeEmpty = null;
+      this._selectedUi.upgradeMaxTitle = null;
+      this._selectedUi.upgradeMaxSub = null;
       info.className = "muted small";
       info.textContent = "Nothing selected.";
       actions.innerHTML = "";
@@ -546,8 +717,15 @@ export class UI {
       actions.appendChild(upgradeWrap);
 
       const upgradeEmpty = document.createElement("div");
-      upgradeEmpty.className = "upgrade-empty muted small";
-      upgradeEmpty.textContent = "All upgrades purchased.";
+      upgradeEmpty.className = "upgrade-empty upgrade-maxed";
+      const upgradeMaxTitle = document.createElement("div");
+      upgradeMaxTitle.className = "upgrade-maxed-title";
+      upgradeMaxTitle.textContent = "Maxed";
+      const upgradeMaxSub = document.createElement("div");
+      upgradeMaxSub.className = "upgrade-maxed-sub";
+      upgradeMaxSub.textContent = "Path complete.";
+      upgradeEmpty.appendChild(upgradeMaxTitle);
+      upgradeEmpty.appendChild(upgradeMaxSub);
       upgradeEmpty.style.display = "none";
       upgradeWrap.appendChild(upgradeEmpty);
 
@@ -650,6 +828,8 @@ export class UI {
       this._selectedUi.targetingSelect = targetingSelect;
       this._selectedUi.sellBtn = sellBtn;
       this._selectedUi.upgradeEmpty = upgradeEmpty;
+      this._selectedUi.upgradeMaxTitle = upgradeMaxTitle;
+      this._selectedUi.upgradeMaxSub = upgradeMaxSub;
     }
 
     // Update dynamic fields without rebuilding the DOM.
@@ -711,8 +891,39 @@ export class UI {
     const money = this._game.state.money;
     const idToUp = new Map((def.upgrades || []).map((u) => [u.id, u]));
     const ownedIds = tower.appliedUpgrades;
+    const tier1Upgrades = (def.upgrades || []).filter((u) => (u.tier ?? 1) === 1);
+    const chosenTier1 = tier1Upgrades.find((u) => ownedIds.has(u.id)) || null;
+    const rootCache = new Map();
+
+    const getUpgradeRoots = (upId, stack = new Set()) => {
+      if (rootCache.has(upId)) return rootCache.get(upId);
+      const up = idToUp.get(upId);
+      if (!up) return new Set();
+      const tier = up.tier ?? 1;
+      if (tier === 1) {
+        const roots = new Set([upId]);
+        rootCache.set(upId, roots);
+        return roots;
+      }
+      const roots = new Set();
+      const reqs = up.requires || [];
+      for (const req of reqs) {
+        if (stack.has(req)) continue;
+        stack.add(req);
+        for (const r of getUpgradeRoots(req, stack)) roots.add(r);
+        stack.delete(req);
+      }
+      rootCache.set(upId, roots);
+      return roots;
+    };
 
     const getPathLockReason = (up) => {
+      if (chosenTier1) {
+        const roots = getUpgradeRoots(up.id);
+        if (roots.size && !roots.has(chosenTier1.id)) {
+          return `Path locked by: ${chosenTier1.name}`;
+        }
+      }
       const excludesOwned = (up.excludes || []).filter((x) => ownedIds.has(x));
       const ownedExcludes = [...ownedIds].filter((id) => (idToUp.get(id)?.excludes || []).includes(up.id));
       const blockers = [...excludesOwned, ...ownedExcludes];
@@ -744,7 +955,15 @@ export class UI {
       node.wrap.classList.toggle("hidden", activeTier != null ? tier !== activeTier : true);
     }
     if (this._selectedUi.upgradeEmpty) {
-      this._selectedUi.upgradeEmpty.style.display = activeTier == null ? "block" : "none";
+      const maxed = activeTier == null;
+      this._selectedUi.upgradeEmpty.style.display = maxed ? "block" : "none";
+      if (maxed) {
+        const pathAccent = chosenTier1 ? getUpgradeAccent(def, chosenTier1) : def.color;
+        const pathLabel = chosenTier1 ? chosenTier1.name : def.name;
+        if (this._selectedUi.upgradeMaxTitle) this._selectedUi.upgradeMaxTitle.textContent = "Maxed";
+        if (this._selectedUi.upgradeMaxSub) this._selectedUi.upgradeMaxSub.textContent = `Path: ${pathLabel}`;
+        if (pathAccent) this._selectedUi.upgradeEmpty.style.setProperty("--accent", pathAccent);
+      }
     }
 
     for (const up of def.upgrades || []) {
@@ -1021,6 +1240,7 @@ export class UI {
   showGameOverWithTitle(title, reason) {
     if (this._els.gameOverTitle) this._els.gameOverTitle.textContent = title;
     this._els.gameOverReason.textContent = reason;
+    if (this._els.gameOver) this._els.gameOver.classList.toggle("victory", /victory/i.test(title));
     this._els.gameOver.classList.remove("hidden");
   }
 }

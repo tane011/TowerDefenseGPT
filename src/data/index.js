@@ -11,5 +11,6 @@ export const DATA = {
   modifierDefs: MODIFIERS,
   towerDefs: TOWERS,
   enemyDefs: ENEMIES,
-  createWave: (waveNumber, rng, map, mode, modifiers) => createWaveImpl(waveNumber, rng, map, ENEMIES, mode, modifiers),
+  createWave: (waveNumber, rng, map, mode, modifiers, seenEnemyIds) =>
+    createWaveImpl(waveNumber, rng, map, ENEMIES, mode, modifiers, seenEnemyIds),
 };

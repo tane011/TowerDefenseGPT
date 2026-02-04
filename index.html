@@ -150,11 +150,6 @@
         </div>
 
         <section class="card">
-          <h3>Help</h3>
-          <button id="tutorial-btn-alt" class="ghost">Open Tutorial (H)</button>
-        </section>
-
-        <section class="card">
           <h3>Build</h3>
           <div id="tower-palette" class="palette"></div>
           <div id="build-hint" class="muted small"></div>
@@ -183,6 +178,135 @@
         <section class="card">
           <h3>Log</h3>
           <div id="log" class="log"></div>
+        </section>
+
+        <section class="card">
+          <h3>Help</h3>
+          <button id="tutorial-btn-alt" class="ghost">Open Tutorial (H)</button>
+          <div class="help-keys">
+            <div class="kbd">
+              <span>Click</span>
+              <code>Place / Select</code>
+            </div>
+            <div class="kbd">
+              <span>Right‑Click</span>
+              <code>Cancel</code>
+            </div>
+            <div class="kbd">
+              <span>Space</span>
+              <code>Start Next Wave</code>
+            </div>
+            <div class="kbd">
+              <span>P</span>
+              <code>Pause</code>
+            </div>
+            <div class="kbd">
+              <span>Q</span>
+              <code>Quick Sell</code>
+            </div>
+            <div class="kbd">
+              <span>A</span>
+              <code>Buy Next Upgrade</code>
+            </div>
+            <div class="kbd">
+              <span>Arrow Keys</span>
+              <code>Cycle Build</code>
+            </div>
+            <div class="kbd">
+              <span>Enter</span>
+              <code>Toggle Build</code>
+            </div>
+            <div class="kbd">
+              <span>B</span>
+              <code>Clear Selection</code>
+            </div>
+            <div class="kbd">
+              <span>H</span>
+              <code>Tutorial</code>
+            </div>
+            <div class="kbd">
+              <span>F</span>
+              <code>Fullscreen</code>
+            </div>
+            <div class="kbd">
+              <span>Esc</span>
+              <code>Cancel Build</code>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <h3>Settings</h3>
+          <div class="settings-list">
+            <label class="setting-item">
+              <input id="setting-auto-waves" type="checkbox" />
+              <span>Auto‑start waves by default</span>
+            </label>
+            <label class="setting-item">
+              <input id="setting-show-ranges" type="checkbox" />
+              <span>Show all tower ranges</span>
+            </label>
+            <label class="setting-item">
+              <input id="setting-show-auras" type="checkbox" />
+              <span>Show support aura rings</span>
+            </label>
+            <label class="setting-item">
+              <input id="setting-reduce-vfx" type="checkbox" />
+              <span>Reduce VFX intensity</span>
+            </label>
+            <div class="settings-subtitle">Advanced</div>
+            <label class="setting-item">
+              <input id="setting-reduce-motion" type="checkbox" />
+              <span>Reduce motion (less bobbing)</span>
+            </label>
+            <label class="setting-item">
+              <input id="setting-show-grid" type="checkbox" />
+              <span>Show grid overlay</span>
+            </label>
+            <label class="setting-item">
+              <input id="setting-show-decor" type="checkbox" />
+              <span>Show map decorations</span>
+            </label>
+            <label class="setting-item">
+              <input id="setting-show-path-glow" type="checkbox" />
+              <span>Show path glow</span>
+            </label>
+            <label class="setting-item">
+              <input id="setting-show-vignette" type="checkbox" />
+              <span>Show vignette</span>
+            </label>
+            <label class="setting-item">
+              <input id="setting-show-projectiles" type="checkbox" />
+              <span>Show projectiles</span>
+            </label>
+            <label class="setting-item">
+              <input id="setting-show-enemy-hp" type="checkbox" />
+              <span>Show enemy health bars</span>
+            </label>
+            <label class="setting-item">
+              <input id="setting-show-ally-hp" type="checkbox" />
+              <span>Show ally health bars</span>
+            </label>
+            <label class="setting-item">
+              <input id="setting-show-status-glyphs" type="checkbox" />
+              <span>Show status glyphs</span>
+            </label>
+            <label class="setting-item">
+              <input id="setting-show-status-auras" type="checkbox" />
+              <span>Show status aura rings</span>
+            </label>
+            <label class="setting-item">
+              <input id="setting-show-boss-rings" type="checkbox" />
+              <span>Show boss/elite rings</span>
+            </label>
+            <label class="setting-item">
+              <input id="setting-show-boss-bar" type="checkbox" />
+              <span>Show boss bar</span>
+            </label>
+          </div>
+          <div class="settings-actions">
+            <button id="setting-reset-coachmarks" class="ghost">Reset Tips</button>
+          </div>
         </section>
       </aside>
     </div>

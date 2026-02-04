@@ -65,6 +65,7 @@ export class Renderer {
     const w = this._canvas.width;
     const h = this._canvas.height;
     const time = state?.time ?? 0;
+    const settings = ui?.settings || world?.settings || {};
 
     if (!map) {
       ctx.fillStyle = "#0b1022";
@@ -75,7 +76,7 @@ export class Renderer {
       return;
     }
 
-    this._drawStaticLayer(ctx, map);
+    this._drawStaticLayer(ctx, map, settings);
     const towerById = new Map(world.towers.map((t) => [t.id, t]));
     this._drawTowers(ctx, map, world, state, ui, time);
     this._drawAllies(ctx, world, time, towerById);
@@ -83,7 +84,7 @@ export class Renderer {
     this._drawEnemies(ctx, world, time);
     this._drawVfx(ctx, world, time);
 
-    this._drawBossBar(ctx, world);
+    if (settings.showBossBar !== false) this._drawBossBar(ctx, world);
     this._drawHud(ctx, state, world);
   }
 
@@ -108,7 +109,7 @@ export class Renderer {
     ctx.restore();
   }
 
-  _drawPaths(ctx, map) {
+  _drawPaths(ctx, map, settings = {}) {
     const ts = map.tileSize;
     ctx.save();
 
@@ -121,15 +122,17 @@ export class Renderer {
       }
     }
 
-    ctx.strokeStyle = "rgba(106,164,255,0.2)";
-    ctx.lineWidth = 18;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    for (const poly of map.paths) {
-      ctx.beginPath();
-      ctx.moveTo(poly[0].x, poly[0].y);
-      for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i].x, poly[i].y);
-      ctx.stroke();
+    if (settings.showPathGlow !== false) {
+      ctx.strokeStyle = "rgba(106,164,255,0.2)";
+      ctx.lineWidth = 18;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      for (const poly of map.paths) {
+        ctx.beginPath();
+        ctx.moveTo(poly[0].x, poly[0].y);
+        for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i].x, poly[i].y);
+        ctx.stroke();
+      }
     }
 
     ctx.strokeStyle = "rgba(106,164,255,0.6)";
@@ -208,10 +211,14 @@ export class Renderer {
     ctx.restore();
   }
 
-  _drawStaticLayer(ctx, map) {
+  _drawStaticLayer(ctx, map, settings = {}) {
     const w = this._canvas.width;
     const h = this._canvas.height;
-    const key = `${map.id}-${w}x${h}`;
+    const grid = settings.showGrid !== false;
+    const decor = settings.showDecor !== false;
+    const glow = settings.showPathGlow !== false;
+    const vignetteOn = settings.showVignette !== false;
+    const key = `${map.id}-${w}x${h}-g${grid}-d${decor}-p${glow}-v${vignetteOn}`;
     if (!this._staticLayer || this._staticLayerKey !== key) {
       const c = document.createElement("canvas");
       c.width = w;
@@ -222,16 +229,25 @@ export class Renderer {
       g.addColorStop(1, "#0c1733");
       sctx.fillStyle = g;
       sctx.fillRect(0, 0, w, h);
-      this._drawGrid(sctx, map);
-      this._drawPaths(sctx, map);
-      this._drawDecor(sctx, map);
+      if (grid) this._drawGrid(sctx, map);
+      this._drawPaths(sctx, map, settings);
+      if (decor) this._drawDecor(sctx, map);
       this._drawBase(sctx, map);
 
-      const vignette = sctx.createRadialGradient(w * 0.5, h * 0.4, Math.min(w, h) * 0.3, w * 0.5, h * 0.5, Math.max(w, h) * 0.6);
-      vignette.addColorStop(0, "rgba(0,0,0,0)");
-      vignette.addColorStop(1, "rgba(0,0,0,0.35)");
-      sctx.fillStyle = vignette;
-      sctx.fillRect(0, 0, w, h);
+      if (vignetteOn) {
+        const vignette = sctx.createRadialGradient(
+          w * 0.5,
+          h * 0.4,
+          Math.min(w, h) * 0.3,
+          w * 0.5,
+          h * 0.5,
+          Math.max(w, h) * 0.6
+        );
+        vignette.addColorStop(0, "rgba(0,0,0,0)");
+        vignette.addColorStop(1, "rgba(0,0,0,0.35)");
+        sctx.fillStyle = vignette;
+        sctx.fillRect(0, 0, w, h);
+      }
 
       this._staticLayer = c;
       this._staticLayerKey = key;
@@ -241,6 +257,7 @@ export class Renderer {
 
   _drawTowers(ctx, map, world, state, ui, time) {
     ctx.save();
+    const tierOverlays = [];
     for (const t of world.towers) {
       ctx.save();
       const def = this._towerDefs[t.defId];
@@ -248,6 +265,9 @@ export class Renderer {
       const sprite = this._sprites.towers[t.defId];
 
       const stats = def ? t.computeStats(def, { modifiers: world.modifiers }) : null;
+      const settings = ui?.settings || {};
+      const showAuraRings = settings.showAuraRings !== false;
+      const showAllRanges = settings.showAllRanges === true;
       const bob = Math.sin(time * 2.4 + hash01(t.id) * 10) * 0.7;
       const size = stats?.aura ? 34 : 34;
 
@@ -263,13 +283,24 @@ export class Renderer {
       }
 
       // Support towers have an aura ring.
-      if (stats?.aura) {
-        ctx.globalAlpha = 0.25;
-        ctx.strokeStyle = color;
+      if (stats?.aura && showAuraRings) {
+        const radius = stats.aura.radius ?? 120;
+        ctx.save();
+        ctx.globalAlpha = 0.4;
+        ctx.strokeStyle = "rgba(45,212,191,0.65)";
         ctx.lineWidth = 2;
+        ctx.setLineDash([10, 6]);
         ctx.beginPath();
-        ctx.arc(t.x, t.y, stats.aura.radius ?? 120, 0, Math.PI * 2);
+        ctx.arc(t.x, t.y, radius, 0, Math.PI * 2);
         ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 0.18;
+        ctx.strokeStyle = "rgba(56,189,248,0.45)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, radius * 0.86, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
       } else if (stats) {
         // Draw a simple turret barrel that points at the last aimed target.
         const angle = Number.isFinite(t.aimAngle) ? t.aimAngle : 0;
@@ -310,11 +341,17 @@ export class Renderer {
 
       const tier = getTowerTier(t, def);
       if (tier > 0) {
-        ctx.globalAlpha = 1;
         const accent = getTowerPathAccent(t, def) ?? color;
-        drawTierPips(ctx, t.x, t.y + bob + 14, tier, accent);
-        drawTierCrown(ctx, t.x, t.y + bob - 16, tier, accent);
-        drawTierOverlay(ctx, t.x, t.y + bob, tier, accent);
+        tierOverlays.push({ x: t.x, y: t.y + bob, tier, accent });
+      }
+
+      if (showAllRanges && stats && !stats.aura) {
+        ctx.globalAlpha = 0.08;
+        ctx.strokeStyle = "#60a5fa";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, stats.range, 0, Math.PI * 2);
+        ctx.stroke();
       }
 
       if (state.selectedTowerId === t.id) {
@@ -333,6 +370,19 @@ export class Renderer {
           ctx.arc(t.x, t.y, stats.range, 0, Math.PI * 2);
           ctx.stroke();
         }
+      }
+      ctx.restore();
+    }
+
+    // Draw tier overlays in a separate pass to avoid flash/recoil affecting them.
+    if (tierOverlays.length) {
+      ctx.save();
+      ctx.globalCompositeOperation = "source-over";
+      for (const overlay of tierOverlays) {
+        ctx.globalAlpha = 1;
+        drawTierPips(ctx, overlay.x, overlay.y + 14, overlay.tier, overlay.accent);
+        drawTierCrown(ctx, overlay.x, overlay.y - 14, overlay.tier, overlay.accent);
+        drawTierOverlay(ctx, overlay.x, overlay.y, overlay.tier, overlay.accent);
       }
       ctx.restore();
     }
@@ -375,6 +425,9 @@ export class Renderer {
 
   _drawAllies(ctx, world, time) {
     if (!world.allies?.length) return;
+    const settings = world?.settings || {};
+    const motionMul = settings.reduceMotion ? 0 : 1;
+    const showAllyHp = settings.showAllyHealthBars !== false;
     ctx.save();
     for (const a of world.allies) {
       if (!a.alive) continue;
@@ -382,7 +435,7 @@ export class Renderer {
       const sourceDef = sourceTower ? this._towerDefs[sourceTower.defId] : null;
       const sigilColor = sourceDef?.color ?? a.color;
       const sigilType = sourceTower?.defId ?? "default";
-      const bob = Math.sin(time * 3.4 + hash01(a.id) * 8) * 1.2;
+      const bob = Math.sin(time * 3.4 + hash01(a.id) * 8) * 1.2 * motionMul;
       const size = 18;
       ctx.save();
       ctx.translate(a.x, a.y + bob);
@@ -418,13 +471,21 @@ export class Renderer {
       }
       ctx.restore();
 
-      const t = a.maxHp > 0 ? a.hp / a.maxHp : 0;
-      drawHealthBar(ctx, a.x - 10, a.y + bob - 14, 20, 4, t, "#34d399");
+      if (showAllyHp) {
+        const t = a.maxHp > 0 ? a.hp / a.maxHp : 0;
+        drawHealthBar(ctx, a.x - 10, a.y + bob - 14, 20, 4, t, "#34d399");
+      }
     }
     ctx.restore();
   }
 
   _drawEnemies(ctx, world, time) {
+    const settings = world?.settings || {};
+    const motionMul = settings.reduceMotion ? 0 : 1;
+    const showEnemyHp = settings.showEnemyHealthBars !== false;
+    const showStatusGlyphs = settings.showStatusGlyphs !== false;
+    const showStatusAuras = settings.showStatusAuras !== false;
+    const showBossRings = settings.showBossRings !== false;
     ctx.save();
     for (const e of world.enemies) {
       if (!e.alive) continue;
@@ -432,8 +493,8 @@ export class Renderer {
       const color = def?.color ?? "#fbbf24";
       const sprite = this._sprites.enemies[e.defId];
       const phase = hash01(e.id);
-      const bob = Math.sin(time * 4.2 + phase * 10) * 1.6;
-      const tilt = Math.sin(time * 3.1 + phase * 12) * 0.08;
+      const bob = Math.sin(time * 4.2 + phase * 10) * 1.6 * motionMul;
+      const tilt = Math.sin(time * 3.1 + phase * 12) * 0.08 * motionMul;
       const size = Math.max(22, e.radius * 2 + 16);
 
       if (sprite) {
@@ -451,7 +512,7 @@ export class Renderer {
         ctx.fill();
       }
 
-      if (e.tags?.has?.("boss")) {
+      if (showBossRings && e.tags?.has?.("boss")) {
         ctx.globalAlpha = 0.35;
         ctx.strokeStyle = "rgba(251,113,133,0.8)";
         ctx.lineWidth = 4;
@@ -460,7 +521,7 @@ export class Renderer {
         ctx.stroke();
       }
 
-      if (e.tags?.has?.("elite") && !e.tags?.has?.("boss")) {
+      if (showBossRings && e.tags?.has?.("elite") && !e.tags?.has?.("boss")) {
         ctx.globalAlpha = 0.65;
         ctx.strokeStyle = "rgba(251,191,36,0.85)";
         ctx.lineWidth = 2;
@@ -478,7 +539,7 @@ export class Renderer {
         ctx.stroke();
       }
 
-      if (e.effects.length) {
+      if (showStatusAuras && e.effects.length) {
         const aura = effectAuraColor(e.effects[0]?.type);
         if (aura) {
           ctx.globalAlpha = 0.25;
@@ -491,11 +552,18 @@ export class Renderer {
       }
 
       // Health bar
-      const t = e.maxHp > 0 ? e.hp / e.maxHp : 0;
-      drawHealthBar(ctx, e.x - 16, e.y + bob - e.radius - 12, 32, 5, t);
+      if (showEnemyHp) {
+        const t = e.maxHp > 0 ? e.hp / e.maxHp : 0;
+        const barX = e.x - 16;
+        const barY = e.y + bob - e.radius - 12;
+        drawHealthBar(ctx, barX, barY, 32, 5, t);
+        if (e.shield > 0) {
+          drawShieldBadge(ctx, barX, barY - 12, e.shield);
+        }
+      }
 
       // Status glyphs
-      if (e.effects.length) {
+      if (showStatusGlyphs && e.effects.length) {
         ctx.globalAlpha = 0.9;
         ctx.font = "10px ui-monospace, Menlo, monospace";
         ctx.textAlign = "center";
@@ -512,6 +580,7 @@ export class Renderer {
   }
 
   _drawProjectiles(ctx, world) {
+    if (world?.settings?.showProjectiles === false) return;
     ctx.save();
     ctx.globalAlpha = 0.95;
     for (const p of world.projectiles) {
@@ -538,12 +607,16 @@ export class Renderer {
 
   _drawVfx(ctx, world, time) {
     if (!world.vfx?.length) return;
+    const settings = world?.settings || null;
+    const scale = settings?.vfxScale ?? 1;
+    const motionMul = settings?.reduceMotion ? 0.25 : 1;
+    if (scale <= 0) return;
     ctx.save();
     for (const v of world.vfx) {
       const t = 1 - v.life / v.maxLife;
       if (v.type === "explosion") {
-        const r = v.radius * (0.6 + 0.8 * t);
-        const alpha = Math.max(0, 0.9 - t);
+        const r = v.radius * (0.6 + 0.8 * t) * scale;
+        const alpha = Math.max(0, (0.9 - t) * scale);
         const g = ctx.createRadialGradient(v.x, v.y, r * 0.1, v.x, v.y, r);
         g.addColorStop(0, withAlpha(v.color, 0.8 * alpha));
         g.addColorStop(1, withAlpha(v.color, 0));
@@ -560,16 +633,16 @@ export class Renderer {
         ctx.arc(v.x, v.y, r * 0.7, 0, Math.PI * 2);
         ctx.stroke();
       } else if (v.type === "hit") {
-        const r = v.radius * (0.4 + 0.8 * t);
-        ctx.globalAlpha = 0.7 - t * 0.6;
+        const r = v.radius * (0.4 + 0.8 * t) * scale;
+        ctx.globalAlpha = (0.7 - t * 0.6) * scale;
         ctx.strokeStyle = withAlpha(v.color, 0.9);
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.arc(v.x, v.y, r, 0, Math.PI * 2);
         ctx.stroke();
       } else if (v.type === "zap") {
-        const jitter = (Math.sin(time * 40 + t * 10) * 3) || 0;
-        ctx.globalAlpha = 0.9 - t * 0.8;
+        const jitter = ((Math.sin(time * 40 + t * 10) * 3) || 0) * motionMul;
+        ctx.globalAlpha = (0.9 - t * 0.8) * scale;
         ctx.strokeStyle = withAlpha(v.color, 0.9);
         ctx.lineWidth = 2.5;
         ctx.beginPath();
@@ -578,24 +651,25 @@ export class Renderer {
         ctx.lineTo(v.x2, v.y2);
         ctx.stroke();
 
-        ctx.globalAlpha = 0.35 - t * 0.3;
+        ctx.globalAlpha = (0.35 - t * 0.3) * scale;
         ctx.lineWidth = 6;
         ctx.stroke();
       } else if (v.type === "pulse") {
-        const r = v.radius * (0.5 + 0.9 * t);
-        ctx.globalAlpha = 0.5 - t * 0.45;
+        const r = v.radius * (0.5 + 0.9 * t) * scale;
+        ctx.globalAlpha = (0.5 - t * 0.45) * scale;
         ctx.strokeStyle = withAlpha(v.color, 0.9);
         ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.arc(v.x, v.y, r, 0, Math.PI * 2);
         ctx.stroke();
 
-        ctx.globalAlpha = 0.2 - t * 0.18;
+        ctx.globalAlpha = (0.2 - t * 0.18) * scale;
         ctx.lineWidth = 8;
         ctx.stroke();
       } else if (v.type === "telegraph") {
-        const r = v.radius * (0.6 + 0.4 * t);
-        ctx.globalAlpha = 0.35 + t * 0.25;
+        const teleScale = Math.max(0.7, scale);
+        const r = v.radius * (0.6 + 0.4 * t) * teleScale;
+        ctx.globalAlpha = (0.35 + t * 0.25) * teleScale;
         ctx.strokeStyle = withAlpha(v.color, 0.8);
         ctx.lineWidth = 2;
         ctx.setLineDash([8, 6]);
@@ -603,6 +677,54 @@ export class Renderer {
         ctx.arc(v.x, v.y, r, 0, Math.PI * 2);
         ctx.stroke();
         ctx.setLineDash([]);
+      } else if (v.type === "beam") {
+        const jitter = ((Math.sin(time * 50 + t * 12) * 2) || 0) * motionMul;
+        const mx = (v.x1 + v.x2) / 2 + jitter;
+        const my = (v.y1 + v.y2) / 2 - jitter;
+        const w = Math.max(1.5, (v.width ?? 3) * scale);
+        ctx.globalAlpha = (0.85 - t * 0.7) * scale;
+        ctx.strokeStyle = withAlpha(v.color, 0.9);
+        ctx.lineWidth = w;
+        ctx.beginPath();
+        ctx.moveTo(v.x1, v.y1);
+        ctx.lineTo(mx, my);
+        ctx.lineTo(v.x2, v.y2);
+        ctx.stroke();
+
+        ctx.globalAlpha = (0.25 - t * 0.2) * scale;
+        ctx.strokeStyle = withAlpha(v.color, 0.6);
+        ctx.lineWidth = w * 2.2;
+        ctx.beginPath();
+        ctx.moveTo(v.x1, v.y1);
+        ctx.lineTo(mx, my);
+        ctx.lineTo(v.x2, v.y2);
+        ctx.stroke();
+      } else if (v.type === "boss_death") {
+        const rings = Math.max(1, v.rings ?? 3);
+        const shards = Math.max(8, v.shards ?? 12);
+        const r = (v.radius ?? 200) * (0.5 + 0.6 * t) * scale;
+        const accent = v.accent ?? "rgba(231,236,255,0.75)";
+        ctx.globalAlpha = (0.8 - t * 0.7) * scale;
+        ctx.strokeStyle = withAlpha(v.color, 0.9);
+        ctx.lineWidth = 3;
+        for (let i = 0; i < rings; i++) {
+          const rr = r * (0.5 + i * 0.28);
+          ctx.beginPath();
+          ctx.arc(v.x, v.y, rr, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.globalAlpha = (0.6 - t * 0.5) * scale;
+        ctx.strokeStyle = withAlpha(accent, 0.7);
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let i = 0; i < shards; i++) {
+          const ang = (Math.PI * 2 * i) / shards + t * 1.2;
+          const inner = r * 0.35;
+          const outer = r * (0.85 + 0.2 * Math.sin(t * 6 + i));
+          ctx.moveTo(v.x + Math.cos(ang) * inner, v.y + Math.sin(ang) * inner);
+          ctx.lineTo(v.x + Math.cos(ang) * outer, v.y + Math.sin(ang) * outer);
+        }
+        ctx.stroke();
       }
     }
     ctx.restore();
@@ -619,8 +741,10 @@ export class Renderer {
     const x = Math.round((w - barW) / 2);
     const y = pad;
     const pendingList = boss._pendingAbilities?.length ? boss._pendingAbilities : [];
-    const pendingRows = Math.min(3, pendingList.length);
-    const extraH = pendingRows ? pendingRows * 16 + 6 : 0;
+    const pendingRows = Math.min(4, pendingList.length);
+    const extraCount = Math.max(0, pendingList.length - pendingRows);
+    const rowH = 18;
+    const extraH = pendingRows ? pendingRows * rowH + (extraCount ? 14 : 6) : 0;
 
     ctx.save();
     ctx.globalAlpha = 0.95;
@@ -659,10 +783,11 @@ export class Renderer {
     if (pendingRows) {
       ctx.font = "11px ui-sans-serif, system-ui";
       ctx.textAlign = "left";
+      ctx.textBaseline = "top";
       for (let i = 0; i < pendingRows; i++) {
         const pending = pendingList[i];
         const castPct = pending?.total > 0 ? clamp(1 - pending.remaining / pending.total, 0, 1) : 0;
-        const cy = y + 38 + i * 16;
+        const cy = y + 38 + i * rowH;
         roundRect(ctx, x, cy, barW, 8, 6);
         ctx.fillStyle = "rgba(0,0,0,0.35)";
         ctx.fill();
@@ -672,8 +797,13 @@ export class Renderer {
 
         ctx.fillStyle = "rgba(231,236,255,0.85)";
         const label = pending?.label || "Ability";
-        ctx.fillText(`${i === 0 ? "Casting" : "Queued"}: ${label}`, x + 6, cy + 14);
+        ctx.fillText(`${i === 0 ? "Casting" : "Queued"}: ${label}`, x + 6, cy + 10);
       }
+      if (extraCount > 0) {
+        ctx.fillStyle = "rgba(148,163,184,0.85)";
+        ctx.fillText(`+${extraCount} more queued`, x + 6, y + 38 + pendingRows * rowH);
+      }
+      ctx.textBaseline = "middle";
     }
     ctx.restore();
   }
@@ -685,7 +815,7 @@ export class Renderer {
     ctx.font = "13px ui-sans-serif, system-ui";
     ctx.fillText(`Money: ${state.money}`, 10, 18);
     ctx.fillText(`Lives: ${state.lives}`, 10, 36);
-    ctx.fillText(`Wave: ${state.waveNumber}${state.inWave ? " (active)" : ""}`, 10, 54);
+    ctx.fillText(`Wave: ${state.waveNumber}`, 10, 54);
     ctx.fillText(`Summons: ${world.allies?.length ?? 0}`, 10, 72);
     ctx.restore();
   }
@@ -816,7 +946,7 @@ function rgbToCss({ r, g, b }) {
 
 function drawTierPips(ctx, x, y, tier, color) {
   const count = Math.min(5, tier);
-  const radius = 14;
+  const radius = 12;
   const start = Math.PI * 0.85;
   const end = Math.PI * 0.15;
   ctx.save();
@@ -827,7 +957,7 @@ function drawTierPips(ctx, x, y, tier, color) {
     const px = x + Math.cos(ang) * radius;
     const py = y + Math.sin(ang) * radius;
     ctx.beginPath();
-    ctx.arc(px, py, 2.2, 0, Math.PI * 2);
+    ctx.arc(px, py, 1.8, 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.restore();
@@ -836,9 +966,9 @@ function drawTierPips(ctx, x, y, tier, color) {
 function drawTierCrown(ctx, x, y, tier, color) {
   if (tier <= 0) return;
   const t = Math.min(5, tier);
-  const baseW = 10 + t * 0.8;
-  const baseH = 4 + t * 0.3;
-  const spikeH = 5 + t * 0.6;
+  const baseW = 8 + t * 0.6;
+  const baseH = 3 + t * 0.25;
+  const spikeH = 4 + t * 0.5;
   ctx.save();
   ctx.globalAlpha = 0.9;
   ctx.fillStyle = withAlpha(color, 0.9);
@@ -859,12 +989,12 @@ function drawTierCrown(ctx, x, y, tier, color) {
   if (tier >= 3) {
     ctx.fillStyle = "rgba(251,191,36,0.9)";
     ctx.beginPath();
-    ctx.arc(x, y - spikeH * 0.3, 2.6, 0, Math.PI * 2);
+    ctx.arc(x, y - spikeH * 0.3, 2.2, 0, Math.PI * 2);
     ctx.fill();
   } else if (tier === 2) {
     ctx.fillStyle = "rgba(231,236,255,0.85)";
     ctx.beginPath();
-    ctx.arc(x, y - spikeH * 0.15, 2, 0, Math.PI * 2);
+    ctx.arc(x, y - spikeH * 0.15, 1.8, 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.restore();
@@ -878,20 +1008,20 @@ function drawTierOverlay(ctx, x, y, tier, color) {
   if (tier >= 1) {
     ctx.globalAlpha = 0.45;
     ctx.beginPath();
-    ctx.arc(x, y, 12, 0, Math.PI * 2);
+    ctx.arc(x, y, 10, 0, Math.PI * 2);
     ctx.stroke();
   }
   if (tier >= 2) {
     ctx.globalAlpha = 0.5;
     ctx.beginPath();
-    ctx.moveTo(x - 10, y - 6);
-    ctx.lineTo(x - 4, y - 12);
-    ctx.lineTo(x + 4, y - 12);
-    ctx.lineTo(x + 10, y - 6);
-    ctx.lineTo(x + 10, y + 6);
-    ctx.lineTo(x + 4, y + 12);
-    ctx.lineTo(x - 4, y + 12);
-    ctx.lineTo(x - 10, y + 6);
+    ctx.moveTo(x - 8, y - 5);
+    ctx.lineTo(x - 3, y - 10);
+    ctx.lineTo(x + 3, y - 10);
+    ctx.lineTo(x + 8, y - 5);
+    ctx.lineTo(x + 8, y + 5);
+    ctx.lineTo(x + 3, y + 10);
+    ctx.lineTo(x - 3, y + 10);
+    ctx.lineTo(x - 8, y + 5);
     ctx.closePath();
     ctx.stroke();
   }
@@ -899,14 +1029,14 @@ function drawTierOverlay(ctx, x, y, tier, color) {
     ctx.globalAlpha = 0.6;
     ctx.fillStyle = withAlpha(color, 0.35);
     ctx.beginPath();
-    ctx.moveTo(x, y - 16);
-    ctx.lineTo(x + 6, y - 6);
-    ctx.lineTo(x + 16, y);
-    ctx.lineTo(x + 6, y + 6);
-    ctx.lineTo(x, y + 16);
-    ctx.lineTo(x - 6, y + 6);
-    ctx.lineTo(x - 16, y);
-    ctx.lineTo(x - 6, y - 6);
+    ctx.moveTo(x, y - 13);
+    ctx.lineTo(x + 5, y - 5);
+    ctx.lineTo(x + 13, y);
+    ctx.lineTo(x + 5, y + 5);
+    ctx.lineTo(x, y + 13);
+    ctx.lineTo(x - 5, y + 5);
+    ctx.lineTo(x - 13, y);
+    ctx.lineTo(x - 5, y - 5);
     ctx.closePath();
     ctx.fill();
   }
@@ -915,10 +1045,48 @@ function drawTierOverlay(ctx, x, y, tier, color) {
     ctx.strokeStyle = withAlpha(color, 0.85);
     ctx.setLineDash([4, 4]);
     ctx.beginPath();
-    ctx.arc(x, y, 18, 0, Math.PI * 2);
+    ctx.arc(x, y, 15, 0, Math.PI * 2);
     ctx.stroke();
     ctx.setLineDash([]);
   }
+  ctx.restore();
+}
+
+function drawShieldBadge(ctx, x, y, shield) {
+  const value = Math.max(0, Math.round(shield));
+  const label = value >= 1000 ? `${Math.round(value / 100) / 10}k` : `${value}`;
+  ctx.save();
+  ctx.font = "9px ui-monospace, Menlo, monospace";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  const padX = 4;
+  const icon = 7;
+  const gap = 2;
+  const textW = ctx.measureText(label).width;
+  const w = padX * 2 + icon + gap + textW;
+  const h = 10;
+  roundRect(ctx, x, y, w, h, 4);
+  ctx.fillStyle = "rgba(15,23,42,0.75)";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(96,165,250,0.7)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  const cx = x + padX + icon * 0.5;
+  const cy = y + h * 0.5;
+  ctx.fillStyle = "rgba(96,165,250,0.9)";
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - 3.5);
+  ctx.lineTo(cx + 3, cy - 1);
+  ctx.lineTo(cx + 2, cy + 3.5);
+  ctx.lineTo(cx, cy + 4.8);
+  ctx.lineTo(cx - 2, cy + 3.5);
+  ctx.lineTo(cx - 3, cy - 1);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = "rgba(231,236,255,0.92)";
+  ctx.fillText(label, x + padX + icon + gap, cy + 0.2);
   ctx.restore();
 }
 

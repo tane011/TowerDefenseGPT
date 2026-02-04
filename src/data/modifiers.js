@@ -126,6 +126,12 @@ export const MODIFIERS = [
     effects: { wave: { duplicateSpawns: true } },
   },
   {
+    id: "all_paths",
+    name: "All Paths",
+    description: "Every wave spawns on every path at once (non-boss enemies).",
+    effects: { wave: { spawnAllPaths: true } },
+  },
+  {
     id: "momentum",
     name: "Momentum",
     description: "Enemies move faster but are slightly weaker.",

@@ -13,11 +13,20 @@ function mergeOnHitEffects(baseEffects, extraEffects) {
 
 function cloneAbility(ability) {
   if (!ability) return null;
+  const summon = ability.summon
+    ? {
+        ...ability.summon,
+        onHitEffects: cloneEffects(ability.summon.onHitEffects || []),
+        bonusTags: ability.summon.bonusTags ? [...ability.summon.bonusTags] : null,
+        chain: ability.summon.chain ? { ...ability.summon.chain } : null,
+      }
+    : null;
   return {
     ...ability,
     effects: cloneEffects(ability.effects || []),
     chain: ability.chain ? { ...ability.chain } : null,
     bonusTags: ability.bonusTags ? [...ability.bonusTags] : null,
+    summon,
   };
 }
 
@@ -86,12 +95,18 @@ export class Tower {
       damageType: base.damageType ?? "physical",
       projectileSpeed: base.projectileSpeed ?? 240,
       splashRadius: base.splashRadius ?? 0,
+      beam: base.beam ? { ...base.beam } : null,
       targeting: normalizeTargeting(base.targeting ?? "first"), // first | last | strongest | weakest | closest | farthest | random
       onHitEffects: mergeOnHitEffects(base.onHitEffects, []),
       chain: base.chain ? { ...base.chain } : null,
       bonusTags: base.bonusTags ? [...base.bonusTags] : null,
       bonusMult: base.bonusMult ?? 1,
-      aura: base.aura ? { ...base.aura } : null,
+      aura: base.aura
+        ? {
+            ...base.aura,
+            buffs: base.aura.buffs ? { ...base.aura.buffs } : null,
+          }
+        : null,
       critChance: base.critChance ?? 0,
       critMult: base.critMult ?? 2,
       ability: cloneAbility(base.ability),
@@ -179,6 +194,62 @@ export class Tower {
           buffs: { ...(stats.aura.buffs || {}), ...(fx.auraAdd.buffs || {}) },
         };
       }
+    }
+
+    // Global upgrade scaling: upgrades cost more but make towers noticeably stronger.
+    const upgradeCount = this.appliedUpgrades.size;
+    if (upgradeCount > 0) {
+      const damageMul = 1 + upgradeCount * 0.08;
+      const fireMul = 1 + upgradeCount * 0.05;
+      const rangeMul = 1 + upgradeCount * 0.04;
+      const speedMul = 1 + upgradeCount * 0.03;
+      stats.damage *= damageMul;
+      stats.fireRate *= fireMul;
+      stats.range *= rangeMul;
+      stats.projectileSpeed *= speedMul;
+      if (stats.splashRadius) stats.splashRadius *= 1 + upgradeCount * 0.04;
+      if (stats.ability?.damage != null) stats.ability.damage *= damageMul;
+      if (stats.ability?.summon) {
+        if (stats.ability.summon.damage != null) stats.ability.summon.damage *= damageMul;
+        if (stats.ability.summon.hp != null) stats.ability.summon.hp *= 1 + upgradeCount * 0.06;
+      }
+      if (stats.aura?.radius != null) stats.aura.radius *= 1 + upgradeCount * 0.04;
+    }
+
+    // Global balance pass: fewer towers, higher impact per tower.
+    const balance = {
+      damageMul: 1.5,
+      fireRateMul: 1.15,
+      rangeMul: 1.08,
+      projectileSpeedMul: 1.12,
+      splashRadiusMul: 1.12,
+      abilityDamageMul: 1.6,
+      auraRadiusMul: 1.08,
+      auraBuffMul: 1.08,
+      summonHpMul: 1.4,
+      summonDamageMul: 1.5,
+      summonRangeMul: 1.1,
+      summonFireRateMul: 1.12,
+    };
+
+    stats.damage *= balance.damageMul;
+    stats.fireRate *= balance.fireRateMul;
+    stats.range *= balance.rangeMul;
+    stats.projectileSpeed *= balance.projectileSpeedMul;
+    if (stats.splashRadius) stats.splashRadius *= balance.splashRadiusMul;
+    if (stats.ability?.damage != null) stats.ability.damage *= balance.abilityDamageMul;
+    if (stats.aura?.radius != null) stats.aura.radius *= balance.auraRadiusMul;
+    if (stats.aura?.buffs) {
+      for (const [k, v] of Object.entries(stats.aura.buffs)) {
+        if (typeof v === "number") stats.aura.buffs[k] = v * balance.auraBuffMul;
+      }
+    }
+    if (stats.ability?.summon) {
+      const s = stats.ability.summon;
+      if (s.hp != null) s.hp *= balance.summonHpMul;
+      if (s.damage != null) s.damage *= balance.summonDamageMul;
+      if (s.range != null) s.range *= balance.summonRangeMul;
+      if (s.fireRate != null) s.fireRate *= balance.summonFireRateMul;
     }
 
     // Apply support buffs last.
