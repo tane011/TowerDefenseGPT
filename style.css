@@ -250,6 +250,18 @@ button[disabled] {
 
 .upgrade-name {
   font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.upgrade-path-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #60a5fa;
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.75), 0 0 6px rgba(96, 165, 250, 0.35);
+  flex: 0 0 auto;
 }
 
 .upgrade-cost {
@@ -366,6 +378,88 @@ button[disabled] {
 .panel h2 {
   margin: 0 0 10px;
   letter-spacing: 0.2px;
+}
+
+.start-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.tutorial-panel {
+  display: grid;
+  gap: 6px;
+}
+
+.tutorial-title {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.tutorial-hint {
+  margin-top: 4px;
+}
+
+.tutorial-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.tutorial-progress {
+  margin-top: 2px;
+}
+
+.coachmarks {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+}
+
+.coachmarks.hidden {
+  display: none;
+}
+
+.coachmark-dim {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 10, 18, 0.45);
+  backdrop-filter: blur(2px);
+}
+
+.coachmark-ring {
+  position: absolute;
+  border-radius: 14px;
+  border: 2px solid rgba(129, 140, 248, 0.8);
+  box-shadow: 0 0 0 9999px rgba(8, 10, 18, 0.35), 0 0 18px rgba(129, 140, 248, 0.45);
+  pointer-events: none;
+}
+
+.coachmark-card {
+  position: absolute;
+  width: min(340px, 80vw);
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(24, 30, 54, 0.96);
+  border: 1px solid rgba(231, 236, 255, 0.15);
+  box-shadow: 0 18px 40px rgba(8, 10, 18, 0.5);
+  pointer-events: auto;
+}
+
+.coachmark-title {
+  font-weight: 700;
+  font-size: 15px;
+  margin-bottom: 6px;
+}
+
+.coachmark-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
 }
 
 .row {

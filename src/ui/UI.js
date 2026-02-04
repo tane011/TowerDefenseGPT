@@ -11,6 +11,66 @@ const TARGETING_OPTIONS = [
   { value: "random", label: "Random" },
 ];
 
+const TUTORIAL_STEPS = [
+  {
+    title: "Choose a tower to build",
+    body:
+      "Pick a tower from the Build panel or press Enter to arm build mode, then use the arrow keys to cycle.",
+    hint: "Tip: High‑cost towers need planning—start with a cheap DPS + slow combo.",
+  },
+  {
+    title: "Place towers on build tiles",
+    body:
+      "Click a build tile to place. Towers cannot be placed on the path. Right‑click or Esc cancels build mode.",
+    hint: "Try placing near corners to maximize time on target.",
+  },
+  {
+    title: "Start waves and manage tempo",
+    body:
+      "Press Space or use “Start Next Wave.” Auto mode keeps waves flowing, but you’ll need strong scaling.",
+    hint: "You earn bonus gold between waves, so timing matters.",
+  },
+  {
+    title: "Upgrade and lock a path",
+    body:
+      "Select a tower to see upgrades. Tier‑1 choices branch the tower—locked options stay visible but greyed.",
+    hint: "Path colors match tier dots and crowns on the tower.",
+  },
+  {
+    title: "Targeting modes and abilities",
+    body:
+      "Use targeting modes to handle rushers or elites. Some towers have abilities, auras, or summons.",
+    hint: "Use First for general waves, Strongest for elites, and Closest for fast leaks.",
+  },
+  {
+    title: "Modes and modifiers",
+    body:
+      "Pick a game mode and modifiers on the start screen to shape difficulty, rewards, and wave structure.",
+    hint: "Modifiers stack—try a small set before using Add All.",
+  },
+];
+
+const COACHMARK_STEPS = [
+  {
+    target: "#tower-palette",
+    title: "Build your first tower",
+    body: "Choose a tower from the Build panel. Cheap towers get you started fast.",
+    align: "right",
+  },
+  {
+    target: "#next-wave-btn",
+    title: "Start the first wave",
+    body: "Press Space or click here to begin. You can pause with P at any time.",
+    align: "right",
+  },
+  {
+    target: "#selected-actions",
+    title: "Upgrade and specialize",
+    body: "Select a tower to unlock upgrades and choose a path. Locked options stay visible.",
+    align: "right",
+  },
+];
+
 export class UI {
   constructor({ data, game }) {
     this._data = data;
@@ -32,6 +92,24 @@ export class UI {
       gameOver: document.getElementById("game-over"),
       gameOverTitle: document.getElementById("game-over-title"),
       gameOverReason: document.getElementById("game-over-reason"),
+      tutorialScreen: document.getElementById("tutorial-screen"),
+      tutorialBtn: document.getElementById("tutorial-btn"),
+      tutorialBtnAlt: document.getElementById("tutorial-btn-alt"),
+      tutorialBackBtn: document.getElementById("tutorial-back-btn"),
+      tutorialNextBtn: document.getElementById("tutorial-next-btn"),
+      tutorialCloseBtn: document.getElementById("tutorial-close-btn"),
+      tutorialStepTitle: document.getElementById("tutorial-step-title"),
+      tutorialStepBody: document.getElementById("tutorial-step-body"),
+      tutorialStepHint: document.getElementById("tutorial-step-hint"),
+      tutorialStepProgress: document.getElementById("tutorial-step-progress"),
+      coachmarkLayer: document.getElementById("coachmark-layer"),
+      coachmarkRing: document.querySelector("#coachmark-layer .coachmark-ring"),
+      coachmarkCard: document.querySelector("#coachmark-layer .coachmark-card"),
+      coachmarkTitle: document.getElementById("coachmark-title"),
+      coachmarkBody: document.getElementById("coachmark-body"),
+      coachmarkProgress: document.getElementById("coachmark-progress"),
+      coachmarkNextBtn: document.getElementById("coachmark-next"),
+      coachmarkSkipBtn: document.getElementById("coachmark-skip"),
 
       money: document.getElementById("stat-money"),
       lives: document.getElementById("stat-lives"),
@@ -66,6 +144,18 @@ export class UI {
       tiers: new Map(), // tier -> { wrap }
       upgradeEmpty: null,
     };
+
+    this._tutorial = {
+      open: false,
+      step: 0,
+      pausedBefore: null,
+    };
+
+    this._coachmarks = {
+      open: false,
+      step: 0,
+      pausedBefore: null,
+    };
   }
 
   init() {
@@ -95,6 +185,12 @@ export class UI {
     // Palette.
     this._buildPalette();
 
+    // Tutorial.
+    this._bindTutorial();
+
+    // Coachmarks.
+    this._bindCoachmarks();
+
     this._els.startBtn.addEventListener("click", () => {
       const mapId = this._els.mapSelect.value;
       const modeId = this._els.modeSelect.value;
@@ -103,6 +199,7 @@ export class UI {
       this._els.gameOver.classList.add("hidden");
       this._game.newRun(mapId, modeId, modifierIds);
       this.refreshPaletteCosts();
+      setTimeout(() => this.maybeShowCoachmarks(), 60);
     });
 
     this._els.restartBtn.addEventListener("click", () => {
@@ -112,6 +209,184 @@ export class UI {
 
     this._els.nextWaveBtn.addEventListener("click", () => this._game.startNextWave());
     this._els.toggleAutoBtn.addEventListener("click", () => this._game.toggleAuto());
+  }
+
+  isTutorialOpen() {
+    return this._tutorial.open;
+  }
+
+  toggleTutorial() {
+    if (this._tutorial.open) this.hideTutorial();
+    else this.showTutorial();
+  }
+
+  showTutorial() {
+    if (!this._els.tutorialScreen) return;
+    this._tutorial.open = true;
+    this._tutorial.step = 0;
+    if (this._game?.state?.mode === "playing") {
+      this._tutorial.pausedBefore = this._game.state.paused;
+      this._game.state.paused = true;
+    }
+    this._els.tutorialScreen.classList.remove("hidden");
+    this._renderTutorial();
+  }
+
+  hideTutorial() {
+    if (!this._els.tutorialScreen) return;
+    this._tutorial.open = false;
+    if (this._tutorial.pausedBefore != null && this._game?.state?.mode === "playing") {
+      this._game.state.paused = this._tutorial.pausedBefore;
+    }
+    this._tutorial.pausedBefore = null;
+    this._els.tutorialScreen.classList.add("hidden");
+  }
+
+  _bindTutorial() {
+    const open = () => this.showTutorial();
+    this._els.tutorialBtn?.addEventListener("click", open);
+    this._els.tutorialBtnAlt?.addEventListener("click", open);
+    this._els.tutorialCloseBtn?.addEventListener("click", () => this.hideTutorial());
+    this._els.tutorialNextBtn?.addEventListener("click", () => this._shiftTutorialStep(1));
+    this._els.tutorialBackBtn?.addEventListener("click", () => this._shiftTutorialStep(-1));
+  }
+
+  _shiftTutorialStep(delta) {
+    const max = TUTORIAL_STEPS.length - 1;
+    if (delta > 0 && this._tutorial.step >= max) {
+      this.hideTutorial();
+      return;
+    }
+    this._tutorial.step = Math.min(max, Math.max(0, this._tutorial.step + delta));
+    this._renderTutorial();
+  }
+
+  _renderTutorial() {
+    const step = TUTORIAL_STEPS[this._tutorial.step];
+    if (!step) return;
+    if (this._els.tutorialStepTitle) this._els.tutorialStepTitle.textContent = step.title;
+    if (this._els.tutorialStepBody) this._els.tutorialStepBody.textContent = step.body;
+    if (this._els.tutorialStepHint) this._els.tutorialStepHint.textContent = step.hint || "";
+    if (this._els.tutorialStepProgress) {
+      this._els.tutorialStepProgress.textContent = `Step ${this._tutorial.step + 1} of ${TUTORIAL_STEPS.length}`;
+    }
+    if (this._els.tutorialBackBtn) this._els.tutorialBackBtn.disabled = this._tutorial.step <= 0;
+    if (this._els.tutorialNextBtn) {
+      const isLast = this._tutorial.step >= TUTORIAL_STEPS.length - 1;
+      this._els.tutorialNextBtn.textContent = isLast ? "Finish" : "Next";
+    }
+  }
+
+  maybeShowCoachmarks() {
+    if (this._coachmarks.open) return;
+    if (!this._els.coachmarkLayer) return;
+    if (this._game?.state?.mode !== "playing") return;
+    if (this._game?.state?.waveNumber !== 0) return;
+    const seen = window.localStorage?.getItem("td_coachmarks_seen_v1");
+    if (seen) return;
+    this.showCoachmarks();
+  }
+
+  showCoachmarks() {
+    if (!this._els.coachmarkLayer) return;
+    this._coachmarks.open = true;
+    this._coachmarks.step = 0;
+    if (this._game?.state?.mode === "playing") {
+      this._coachmarks.pausedBefore = this._game.state.paused;
+      this._game.state.paused = true;
+    }
+    this._els.coachmarkLayer.classList.remove("hidden");
+    this._renderCoachmarks();
+  }
+
+  hideCoachmarks(markSeen = true) {
+    if (!this._els.coachmarkLayer) return;
+    this._coachmarks.open = false;
+    if (this._coachmarks.pausedBefore != null && this._game?.state?.mode === "playing") {
+      this._game.state.paused = this._coachmarks.pausedBefore;
+    }
+    this._coachmarks.pausedBefore = null;
+    if (markSeen) window.localStorage?.setItem("td_coachmarks_seen_v1", "1");
+    this._els.coachmarkLayer.classList.add("hidden");
+  }
+
+  _bindCoachmarks() {
+    if (this._els.coachmarkNextBtn) {
+      this._els.coachmarkNextBtn.addEventListener("click", () => this._shiftCoachmark(1));
+    }
+    if (this._els.coachmarkSkipBtn) {
+      this._els.coachmarkSkipBtn.addEventListener("click", () => this.hideCoachmarks(true));
+    }
+    window.addEventListener("resize", () => {
+      if (this._coachmarks.open) this._renderCoachmarks();
+    });
+  }
+
+  _shiftCoachmark(delta) {
+    const max = COACHMARK_STEPS.length - 1;
+    if (delta > 0 && this._coachmarks.step >= max) {
+      this.hideCoachmarks(true);
+      return;
+    }
+    this._coachmarks.step = Math.min(max, Math.max(0, this._coachmarks.step + delta));
+    this._renderCoachmarks();
+  }
+
+  _renderCoachmarks() {
+    if (!this._els.coachmarkLayer || !this._coachmarks.open) return;
+    const step = COACHMARK_STEPS[this._coachmarks.step];
+    if (!step) return;
+    const target = document.querySelector(step.target);
+    if (!target) return;
+    if (this._els.coachmarkTitle) this._els.coachmarkTitle.textContent = step.title;
+    if (this._els.coachmarkBody) this._els.coachmarkBody.textContent = step.body;
+    if (this._els.coachmarkProgress) {
+      this._els.coachmarkProgress.textContent = `Tip ${this._coachmarks.step + 1} of ${COACHMARK_STEPS.length}`;
+    }
+    if (this._els.coachmarkNextBtn) {
+      const isLast = this._coachmarks.step >= COACHMARK_STEPS.length - 1;
+      this._els.coachmarkNextBtn.textContent = isLast ? "Finish" : "Next";
+    }
+
+    const rect = target.getBoundingClientRect();
+    const ringPad = 8;
+    const ring = this._els.coachmarkRing;
+    if (ring) {
+      ring.style.left = `${rect.left - ringPad}px`;
+      ring.style.top = `${rect.top - ringPad}px`;
+      ring.style.width = `${rect.width + ringPad * 2}px`;
+      ring.style.height = `${rect.height + ringPad * 2}px`;
+    }
+
+    const card = this._els.coachmarkCard;
+    if (!card) return;
+    card.style.left = "0px";
+    card.style.top = "0px";
+    card.style.transform = "translate(-9999px, -9999px)";
+
+    const cardRect = card.getBoundingClientRect();
+    const padding = 12;
+    let left = rect.right + padding;
+    let top = rect.top;
+    const align = step.align || "right";
+    if (align === "left") {
+      left = rect.left - cardRect.width - padding;
+      top = rect.top;
+    } else if (align === "bottom") {
+      left = rect.left;
+      top = rect.bottom + padding;
+    } else if (align === "top") {
+      left = rect.left;
+      top = rect.top - cardRect.height - padding;
+    }
+
+    const maxLeft = window.innerWidth - cardRect.width - padding;
+    const maxTop = window.innerHeight - cardRect.height - padding;
+    left = Math.max(padding, Math.min(maxLeft, left));
+    top = Math.max(padding, Math.min(maxTop, top));
+    card.style.left = `${left}px`;
+    card.style.top = `${top}px`;
+    card.style.transform = "translate(0, 0)";
   }
 
   _buildPalette() {
@@ -311,7 +586,16 @@ export class UI {
 
           const name = document.createElement("div");
           name.className = "upgrade-name";
-          name.textContent = up.name;
+          if (up.tier === 1) {
+            const accent = getUpgradeAccent(def, up);
+            const dot = document.createElement("span");
+            dot.className = "upgrade-path-dot";
+            if (accent) dot.style.background = accent;
+            name.appendChild(dot);
+          }
+          const label = document.createElement("span");
+          label.textContent = up.name;
+          name.appendChild(label);
 
           const cost = document.createElement("div");
           cost.className = "upgrade-cost muted";
@@ -751,6 +1035,115 @@ function labelForTargeting(value) {
   const v = normalizeTargeting(value);
   const found = TARGETING_OPTIONS.find((o) => o.value === v);
   return found ? found.label.split(" ")[0] : v || "-";
+}
+
+function getUpgradeAccent(def, up) {
+  if (!def?.upgrades?.length) return null;
+  const tier = up?.tier ?? 1;
+  if (tier !== 1) return null;
+  const tier1 = def.upgrades.filter((u) => (u.tier ?? 1) === 1);
+  if (!tier1.length) return null;
+  const idx = tier1.findIndex((u) => u.id === up.id);
+  if (idx < 0) return null;
+  const palette = getTowerPathPalette(def, tier1.length);
+  return palette[idx % palette.length] ?? def?.color ?? null;
+}
+
+function getTowerPathPalette(def, count) {
+  if (Array.isArray(def?.pathColors) && def.pathColors.length) return def.pathColors;
+  const base = parseHexColor(def?.color);
+  if (!base) return ["#60a5fa", "#f59e0b", "#a78bfa", "#34d399"];
+  const hsl = rgbToHsl(base.r, base.g, base.b);
+  const offsets = [24, -24, 60, -60];
+  const colors = [];
+  const wanted = Math.max(2, count || 2);
+  for (let i = 0; i < wanted; i++) {
+    const hue = (hsl.h + offsets[i % offsets.length] + 360) % 360;
+    const sat = clamp(hsl.s * 1.05, 0.2, 0.9);
+    const lum = clamp(hsl.l + (i % 2 === 0 ? 0.08 : -0.04), 0.25, 0.8);
+    const rgb = hslToRgb(hue, sat, lum);
+    colors.push(rgbToCss(rgb));
+  }
+  return colors;
+}
+
+function parseHexColor(hex) {
+  if (!hex || typeof hex !== "string") return null;
+  const h = hex.replace("#", "").trim();
+  if (h.length === 3) {
+    const r = Number.parseInt(h[0] + h[0], 16);
+    const g = Number.parseInt(h[1] + h[1], 16);
+    const b = Number.parseInt(h[2] + h[2], 16);
+    return { r, g, b };
+  }
+  if (h.length === 6) {
+    const r = Number.parseInt(h.slice(0, 2), 16);
+    const g = Number.parseInt(h.slice(2, 4), 16);
+    const b = Number.parseInt(h.slice(4, 6), 16);
+    return { r, g, b };
+  }
+  return null;
+}
+
+function rgbToHsl(r, g, b) {
+  const nr = r / 255;
+  const ng = g / 255;
+  const nb = b / 255;
+  const max = Math.max(nr, ng, nb);
+  const min = Math.min(nr, ng, nb);
+  const delta = max - min;
+  let h = 0;
+  if (delta > 0) {
+    if (max === nr) h = ((ng - nb) / delta) % 6;
+    else if (max === ng) h = (nb - nr) / delta + 2;
+    else h = (nr - ng) / delta + 4;
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+  const l = (max + min) / 2;
+  const s = delta === 0 ? 0 : delta / (1 - Math.abs(2 * l - 1));
+  return { h, s, l };
+}
+
+function hslToRgb(h, s, l) {
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  let r1 = 0;
+  let g1 = 0;
+  let b1 = 0;
+  if (h < 60) {
+    r1 = c;
+    g1 = x;
+  } else if (h < 120) {
+    r1 = x;
+    g1 = c;
+  } else if (h < 180) {
+    g1 = c;
+    b1 = x;
+  } else if (h < 240) {
+    g1 = x;
+    b1 = c;
+  } else if (h < 300) {
+    r1 = x;
+    b1 = c;
+  } else {
+    r1 = c;
+    b1 = x;
+  }
+  return {
+    r: Math.round((r1 + m) * 255),
+    g: Math.round((g1 + m) * 255),
+    b: Math.round((b1 + m) * 255),
+  };
+}
+
+function rgbToCss({ r, g, b }) {
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function getUpgradeTags(up, def) {

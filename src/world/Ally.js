@@ -1,5 +1,5 @@
 import { nextId } from "../core/ids.js";
-import { advanceAlongPath, pathProgress01, samplePath } from "./path.js";
+import { pathProgress01, samplePath, retreatAlongPath } from "./path.js";
 
 export class Ally {
   constructor(def, pathInfo, opts = {}) {
@@ -58,7 +58,7 @@ export class Ally {
 
   updateMove(dt) {
     if (!this._alive) return { done: false };
-    const next = advanceAlongPath(this.pathInfo, this.segIndex, this.segT, this.speed * dt);
+    const next = retreatAlongPath(this.pathInfo, this.segIndex, this.segT, this.speed * dt);
     this.segIndex = next.segIndex;
     this.segT = next.segT;
     const p = samplePath(this.pathInfo, this.segIndex, this.segT);

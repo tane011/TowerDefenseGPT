@@ -115,3 +115,61 @@ Notes (2026-02-04):
 
 Tests (2026-02-04):
 - Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5190 --actions-file /tmp/td-actions-marshal.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-summoncap`
+
+Notes (2026-02-04):
+- Allies now move toward the start of the path (retreat pathing) instead of heading to the base.
+
+Tests (2026-02-04):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5193 --actions-file /tmp/td-actions-summoner-place.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-ally-back`
+
+Notes (2026-02-04):
+- Allies now pause movement only while they have a target in range; otherwise they keep moving to the path start and despawn on arrival.
+- Summon abilities now round‑robin across all paths within summon radius (multi‑path maps).
+- Allies deal contact damage when colliding with enemies (mutual damage), and allies get unique sigils/colors per summoner tower.
+- Towers show tier pips under the base to indicate upgrade level; towers also gain a tier crown above them.
+- Allies now use unique body shapes by summoner type (summoner/dronebay/marshal/etc).
+- Tower/enemy sprites got added core/base details and minigunner emblem.
+- Boss ability windups are longer for better readability.
+- Added Minigunner tower with unique sprite + upgrades.
+- Boss overlay now lists multiple queued abilities; boss speed reduced further.
+- Tower tier overlays now use path-specific accent colors; crowns scaled down.
+- Path accent colors are now derived per tower from its base color (unique per tower), and the renderer caches static layers for smoother visuals.
+
+Tests (2026-02-04):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5194 --actions-file /tmp/td-actions-summoner-place.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-ally-retreat`
+
+Tests (2026-02-04):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5196 --actions-file /tmp/td-actions-summoner-place.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-ally-roundrobin`
+
+Tests (2026-02-04):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-minigunner.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-minigunner-fixed`
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-summoner-rr.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-summoner-rr-fixed`
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-minigunner.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-minigunner-crown`
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-summoner-allyshape.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-ally-shapes`
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-archer-up.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-tier-overlay`
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-archer-up.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-tier-overlay-3`
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-archer-pathcolor.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-pathcolor`
+
+Notes (2026-02-04):
+- Added path-color dots to tier-1 upgrade cards (UI) using the same per-tower palette logic as renderer.
+- Upgrade name row now aligns dot + label cleanly.
+
+Tests (2026-02-04):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-upgrade-dots.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-upgrade-dots`
+
+Notes (2026-02-04):
+- Added a tutorial overlay with 6 steps, accessible from the start screen, side panel, or by pressing H (Esc closes). Tutorial pauses gameplay while open.
+- Start screen now includes a Tutorial button and control hint for H; side panel includes a Help card.
+
+Tests (2026-02-04):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-tutorial.json --click-selector "#tutorial-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-tutorial`
+
+Notes (2026-02-04):
+- Tutorial “Finish” now closes the overlay on the last step.
+
+Notes (2026-02-04):
+- Added in-game coachmark callouts for the first run (Build panel, Start Wave, Upgrades). They pause gameplay and auto-hide after finishing; stored in localStorage to avoid repeats.
+- Coachmarks are shown after starting a run, with a dim highlight ring and card.
+
+Tests (2026-02-04):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-coachmarks.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-coachmarks`

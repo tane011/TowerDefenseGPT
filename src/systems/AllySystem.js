@@ -21,10 +21,13 @@ export class AllySystem {
         continue;
       }
 
-      const move = ally.updateMove(dt);
-      if (move.done) {
-        ally._alive = false;
-        continue;
+      const targetBeforeMove = pickTarget(enemies, ally.x, ally.y, ally.range);
+      if (!targetBeforeMove) {
+        const move = ally.updateMove(dt);
+        if (move.done) {
+          ally._alive = false;
+          continue;
+        }
       }
 
       // Contact damage from enemies.
@@ -32,7 +35,12 @@ export class AllySystem {
         if (!enemy.alive) continue;
         const r = (enemy.radius ?? 10) + ally.radius;
         if (dist2(ally.x, ally.y, enemy.x, enemy.y) <= r * r) {
+          const hit = ally.contactDamage ?? ally.damage * 0.35;
+          if (hit > 0 && enemy.takeDamage) {
+            enemy.takeDamage(hit * dt, ally.damageType);
+          }
           ally.takeDamage((enemy.contactDamage ?? 6) * dt);
+          ally.animFlash = Math.max(ally.animFlash, 0.4);
           if (!ally.alive) break;
         }
       }
@@ -50,9 +58,9 @@ export class AllySystem {
       }
 
       // Attack
+      const target = targetBeforeMove || pickTarget(enemies, ally.x, ally.y, ally.range);
       ally.cooldown = Math.max(0, ally.cooldown - dt);
       if (ally.cooldown <= 0 && ally.fireRate > 0) {
-        const target = pickTarget(enemies, ally.x, ally.y, ally.range);
         if (target) {
           const angle = Math.atan2(target.y - ally.y, target.x - ally.x);
           ally.aimAngle = angle;

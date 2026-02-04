@@ -67,6 +67,10 @@
                 <code>Quick Sell</code>
               </div>
               <div class="kbd">
+                <span>H</span>
+                <code>Tutorial</code>
+              </div>
+              <div class="kbd">
                 <span>F</span>
                 <code>Fullscreen</code>
               </div>
@@ -76,7 +80,10 @@
               </div>
             </div>
 
-            <button id="start-btn" class="primary">Start Run</button>
+            <div class="start-actions">
+              <button id="start-btn" class="primary">Start Run</button>
+              <button id="tutorial-btn" class="ghost">Tutorial</button>
+            </div>
             <p class="muted small">
               Tip: Try combining <b>Frost</b> slows with <b>Cannon</b> splash, or
               <b>Alchemist</b> armor shred with <b>Archer</b> crits.
@@ -89,6 +96,35 @@
             <h2 id="game-over-title">Game Over</h2>
             <p id="game-over-reason" class="muted"></p>
             <button id="restart-btn" class="primary">Restart</button>
+          </div>
+        </div>
+
+        <div id="tutorial-screen" class="overlay hidden">
+          <div class="panel tutorial-panel">
+            <h2>Tutorial</h2>
+            <div id="tutorial-step-title" class="tutorial-title"></div>
+            <div id="tutorial-step-body" class="muted"></div>
+            <div id="tutorial-step-hint" class="muted small tutorial-hint"></div>
+            <div class="tutorial-actions">
+              <button id="tutorial-back-btn" class="ghost">Back</button>
+              <button id="tutorial-next-btn" class="primary">Next</button>
+              <button id="tutorial-close-btn" class="ghost">Close</button>
+            </div>
+            <div id="tutorial-step-progress" class="muted small tutorial-progress"></div>
+          </div>
+        </div>
+
+        <div id="coachmark-layer" class="coachmarks hidden" aria-hidden="true">
+          <div class="coachmark-dim"></div>
+          <div class="coachmark-ring"></div>
+          <div class="coachmark-card">
+            <div id="coachmark-title" class="coachmark-title"></div>
+            <div id="coachmark-body" class="muted"></div>
+            <div class="coachmark-actions">
+              <button id="coachmark-skip" class="ghost">Skip</button>
+              <button id="coachmark-next" class="primary">Next</button>
+            </div>
+            <div id="coachmark-progress" class="muted small"></div>
           </div>
         </div>
       </div>
@@ -112,6 +148,11 @@
             <div id="stat-threat" class="value">-</div>
           </div>
         </div>
+
+        <section class="card">
+          <h3>Help</h3>
+          <button id="tutorial-btn-alt" class="ghost">Open Tutorial (H)</button>
+        </section>
 
         <section class="card">
           <h3>Build</h3>

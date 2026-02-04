@@ -77,7 +77,8 @@ export class EnemySystem {
       ability.timer -= dt;
       if (ability.timer > 0) continue;
       ability.timer = Math.max(1, ability.cooldown ?? 8);
-      const windup = ability.windup ?? 0;
+      const baseWindup = ability.windup ?? 0;
+      const windup = baseWindup > 0 && enemy.tags?.has?.("boss") ? baseWindup * 2 : baseWindup;
       if (windup > 0) {
         enemy._pendingAbilities.push({
           ability,

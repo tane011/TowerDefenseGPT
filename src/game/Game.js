@@ -166,12 +166,13 @@ export class Game {
   spawnAlly(tower, stats, ability) {
     const summon = ability?.summon;
     if (!summon || !this.pathInfos.length) return false;
-
-    const nearest = this._findNearestPathPoint(tower.x, tower.y);
-    if (!nearest) return false;
-    const pathInfo = this.pathInfos[nearest.pathIndex];
+    const summonRange = ability.radius ?? stats.range ?? 120;
+    const candidates = this._findPathPointsInRange(tower.x, tower.y, summonRange);
+    const fallback = this._findNearestPathPoint(tower.x, tower.y);
+    if (!fallback && !candidates.length) return false;
     let count = Math.max(1, ability.count ?? 1);
     const spawnOffset = summon.spawnOffset ?? 0;
+    const towerDef = this._data.towerDefs[tower.defId];
 
     const cap = summon.cap ?? ability.summonCap ?? stats.summonCap ?? null;
     if (cap != null && cap > 0) {
@@ -187,7 +188,15 @@ export class Game {
       if (count <= 0) return false;
     }
 
+    const pathCycleSize = candidates.length;
+    let pathCycleIndex = tower._summonPathIndex ?? 0;
+
     for (let i = 0; i < count; i++) {
+      const pick = pathCycleSize
+        ? candidates[(pathCycleIndex + i) % pathCycleSize]
+        : fallback;
+      if (!pick) break;
+      const pathInfo = this.pathInfos[pick.pathIndex];
       const allyDef = {
         id: summon.id || "summoned",
         name: summon.name || "Ally",
@@ -205,15 +214,16 @@ export class Game {
         chain: summon.chain || null,
         radius: summon.radius ?? 8,
         lifetime: summon.lifetime ?? 16,
-        color: summon.color ?? "#34d399",
+        color: summon.color ?? towerDef?.color ?? "#34d399",
       };
       const ally = new Ally(allyDef, pathInfo, {
-        segIndex: nearest.segIndex,
-        segT: Math.max(0, Math.min(1, nearest.segT + spawnOffset * (i + 1))),
+        segIndex: pick.segIndex,
+        segT: Math.max(0, Math.min(1, pick.segT + spawnOffset * (i + 1))),
         sourceTowerId: tower.id,
       });
       this.world.allies.push(ally);
     }
+    if (pathCycleSize) tower._summonPathIndex = (pathCycleIndex + count) % pathCycleSize;
     return true;
   }
 
@@ -227,6 +237,17 @@ export class Game {
       }
     }
     return best;
+  }
+
+  _findPathPointsInRange(x, y, range) {
+    const r2 = Math.max(0, range) ** 2;
+    const hits = [];
+    for (let i = 0; i < this.pathInfos.length; i++) {
+      const hit = findClosestPathPoint(this.pathInfos[i], x, y);
+      if (!hit) continue;
+      if (hit.dist2 <= r2) hits.push({ ...hit, pathIndex: i });
+    }
+    return hits;
   }
 
   getTowerCost(def) {
@@ -359,6 +380,12 @@ export class Game {
   }
 
   _handleInput() {
+    if (this._input.consumePressed("KeyH")) this.ui?.toggleTutorial?.();
+    if (this.ui?.isTutorialOpen?.()) {
+      if (this._input.consumePressed("Escape")) this.ui?.hideTutorial?.();
+      this._input.consumeClicks();
+      return;
+    }
     if (this._input.consumePressed("KeyP")) this.togglePause();
     if (this._input.consumePressed("Space")) this.startNextWave();
     if (this._input.consumePressed("ArrowLeft")) this._cycleBuild(-1);

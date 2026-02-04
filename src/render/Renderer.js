@@ -56,6 +56,8 @@ export class Renderer {
     this._towerDefs = towerDefs;
     this._enemyDefs = enemyDefs;
     this._sprites = buildSprites({ towerDefs, enemyDefs });
+    this._staticLayer = null;
+    this._staticLayerKey = "";
   }
 
   render({ map, world, state, ui }) {
@@ -64,23 +66,19 @@ export class Renderer {
     const h = this._canvas.height;
     const time = state?.time ?? 0;
 
-    // Background
-    ctx.fillStyle = "#0b1022";
-    ctx.fillRect(0, 0, w, h);
-
     if (!map) {
+      ctx.fillStyle = "#0b1022";
+      ctx.fillRect(0, 0, w, h);
       ctx.fillStyle = "rgba(231,236,255,0.8)";
       ctx.font = "16px ui-sans-serif, system-ui";
       ctx.fillText("Loading…", 18, 28);
       return;
     }
 
-    this._drawGrid(ctx, map);
-    this._drawPaths(ctx, map);
-    this._drawDecor(ctx, map);
-    this._drawBase(ctx, map);
+    this._drawStaticLayer(ctx, map);
+    const towerById = new Map(world.towers.map((t) => [t.id, t]));
     this._drawTowers(ctx, map, world, state, ui, time);
-    this._drawAllies(ctx, world, time);
+    this._drawAllies(ctx, world, time, towerById);
     this._drawProjectiles(ctx, world);
     this._drawEnemies(ctx, world, time);
     this._drawVfx(ctx, world, time);
@@ -123,7 +121,18 @@ export class Renderer {
       }
     }
 
-    ctx.strokeStyle = "rgba(106,164,255,0.55)";
+    ctx.strokeStyle = "rgba(106,164,255,0.2)";
+    ctx.lineWidth = 18;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    for (const poly of map.paths) {
+      ctx.beginPath();
+      ctx.moveTo(poly[0].x, poly[0].y);
+      for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i].x, poly[i].y);
+      ctx.stroke();
+    }
+
+    ctx.strokeStyle = "rgba(106,164,255,0.6)";
     ctx.lineWidth = 10;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
@@ -151,6 +160,12 @@ export class Renderer {
         ctx.beginPath();
         ctx.arc(x, y, size, 0, Math.PI * 2);
         ctx.fill();
+        ctx.globalAlpha = 0.35;
+        ctx.fillStyle = "rgba(0,0,0,0.5)";
+        ctx.beginPath();
+        ctx.ellipse(x + size * 0.2, y + size * 0.45, size * 0.9, size * 0.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
       } else if (d.type === "rock") {
         ctx.fillStyle = "rgba(100,116,139,0.85)";
         ctx.beginPath();
@@ -184,12 +199,50 @@ export class Renderer {
     ctx.arc(map.base.x, map.base.y, 16, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
+    ctx.globalAlpha = 0.4;
+    ctx.strokeStyle = "rgba(251,113,133,0.5)";
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.arc(map.base.x, map.base.y, 22, 0, Math.PI * 2);
+    ctx.stroke();
     ctx.restore();
+  }
+
+  _drawStaticLayer(ctx, map) {
+    const w = this._canvas.width;
+    const h = this._canvas.height;
+    const key = `${map.id}-${w}x${h}`;
+    if (!this._staticLayer || this._staticLayerKey !== key) {
+      const c = document.createElement("canvas");
+      c.width = w;
+      c.height = h;
+      const sctx = c.getContext("2d", { alpha: false });
+      const g = sctx.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, "#0a1024");
+      g.addColorStop(1, "#0c1733");
+      sctx.fillStyle = g;
+      sctx.fillRect(0, 0, w, h);
+      this._drawGrid(sctx, map);
+      this._drawPaths(sctx, map);
+      this._drawDecor(sctx, map);
+      this._drawBase(sctx, map);
+
+      const vignette = sctx.createRadialGradient(w * 0.5, h * 0.4, Math.min(w, h) * 0.3, w * 0.5, h * 0.5, Math.max(w, h) * 0.6);
+      vignette.addColorStop(0, "rgba(0,0,0,0)");
+      vignette.addColorStop(1, "rgba(0,0,0,0.35)");
+      sctx.fillStyle = vignette;
+      sctx.fillRect(0, 0, w, h);
+
+      this._staticLayer = c;
+      this._staticLayerKey = key;
+    }
+    ctx.drawImage(this._staticLayer, 0, 0);
   }
 
   _drawTowers(ctx, map, world, state, ui, time) {
     ctx.save();
     for (const t of world.towers) {
+      ctx.save();
       const def = this._towerDefs[t.defId];
       const color = def?.color ?? "#e7ecff";
       const sprite = this._sprites.towers[t.defId];
@@ -255,6 +308,15 @@ export class Renderer {
         }
       }
 
+      const tier = getTowerTier(t, def);
+      if (tier > 0) {
+        ctx.globalAlpha = 1;
+        const accent = getTowerPathAccent(t, def) ?? color;
+        drawTierPips(ctx, t.x, t.y + bob + 14, tier, accent);
+        drawTierCrown(ctx, t.x, t.y + bob - 16, tier, accent);
+        drawTierOverlay(ctx, t.x, t.y + bob, tier, accent);
+      }
+
       if (state.selectedTowerId === t.id) {
         ctx.globalAlpha = 0.9;
         ctx.strokeStyle = "#a78bfa";
@@ -272,6 +334,7 @@ export class Renderer {
           ctx.stroke();
         }
       }
+      ctx.restore();
     }
 
     // Placement ghost.
@@ -315,6 +378,10 @@ export class Renderer {
     ctx.save();
     for (const a of world.allies) {
       if (!a.alive) continue;
+      const sourceTower = a.sourceTowerId ? world.towers.find((t) => t.id === a.sourceTowerId) : null;
+      const sourceDef = sourceTower ? this._towerDefs[sourceTower.defId] : null;
+      const sigilColor = sourceDef?.color ?? a.color;
+      const sigilType = sourceTower?.defId ?? "default";
       const bob = Math.sin(time * 3.4 + hash01(a.id) * 8) * 1.2;
       const size = 18;
       ctx.save();
@@ -322,13 +389,17 @@ export class Renderer {
       ctx.rotate(a.aimAngle || 0);
       ctx.fillStyle = a.color || "rgba(52,211,153,0.9)";
       ctx.globalAlpha = 0.95;
-      ctx.beginPath();
-      ctx.moveTo(-size * 0.4, 0);
-      ctx.lineTo(0, -size * 0.5);
-      ctx.lineTo(size * 0.4, 0);
-      ctx.lineTo(0, size * 0.5);
-      ctx.closePath();
-      ctx.fill();
+      drawAllyBody(ctx, sigilType, size);
+
+      if (sigilColor) {
+        ctx.globalAlpha = 0.85;
+        ctx.strokeStyle = withAlpha(sigilColor, 0.9);
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, size * 0.34, 0, Math.PI * 2);
+        ctx.stroke();
+        drawAllySigil(ctx, sigilType, size * 0.5, sigilColor);
+      }
 
       ctx.globalAlpha = 0.85;
       ctx.strokeStyle = "rgba(8,10,18,0.5)";
@@ -547,10 +618,13 @@ export class Renderer {
     const barH = 16;
     const x = Math.round((w - barW) / 2);
     const y = pad;
+    const pendingList = boss._pendingAbilities?.length ? boss._pendingAbilities : [];
+    const pendingRows = Math.min(3, pendingList.length);
+    const extraH = pendingRows ? pendingRows * 16 + 6 : 0;
 
     ctx.save();
     ctx.globalAlpha = 0.95;
-    roundRect(ctx, x - 2, y - 2, barW + 4, barH + 22, 10);
+    roundRect(ctx, x - 2, y - 2, barW + 4, barH + 22 + extraH, 10);
     ctx.fillStyle = "rgba(8,10,18,0.55)";
     ctx.fill();
     ctx.strokeStyle = "rgba(231,236,255,0.12)";
@@ -582,21 +656,24 @@ export class Renderer {
     ctx.textAlign = "right";
     ctx.fillText(`${Math.round(boss.hp)}/${boss.maxHp}`, x + barW - 8, y + 8);
 
-    const pending = boss._pendingAbilities?.[0];
-    if (pending && pending.total > 0) {
-      const castPct = clamp(1 - pending.remaining / pending.total, 0, 1);
-      const cy = y + 38;
-      roundRect(ctx, x, cy, barW, 8, 6);
-      ctx.fillStyle = "rgba(0,0,0,0.35)";
-      ctx.fill();
-      roundRect(ctx, x, cy, barW * castPct, 8, 6);
-      ctx.fillStyle = "rgba(251,191,36,0.85)";
-      ctx.fill();
-
-      ctx.fillStyle = "rgba(231,236,255,0.85)";
+    if (pendingRows) {
       ctx.font = "11px ui-sans-serif, system-ui";
       ctx.textAlign = "left";
-      ctx.fillText(`Casting: ${pending.label || "Ability"}`, x + 6, cy + 14);
+      for (let i = 0; i < pendingRows; i++) {
+        const pending = pendingList[i];
+        const castPct = pending?.total > 0 ? clamp(1 - pending.remaining / pending.total, 0, 1) : 0;
+        const cy = y + 38 + i * 16;
+        roundRect(ctx, x, cy, barW, 8, 6);
+        ctx.fillStyle = "rgba(0,0,0,0.35)";
+        ctx.fill();
+        roundRect(ctx, x, cy, barW * castPct, 8, 6);
+        ctx.fillStyle = i === 0 ? "rgba(251,191,36,0.85)" : "rgba(148,163,184,0.75)";
+        ctx.fill();
+
+        ctx.fillStyle = "rgba(231,236,255,0.85)";
+        const label = pending?.label || "Ability";
+        ctx.fillText(`${i === 0 ? "Casting" : "Queued"}: ${label}`, x + 6, cy + 14);
+      }
     }
     ctx.restore();
   }
@@ -624,6 +701,227 @@ function projectileColor(type) {
   return "rgba(231,236,255,0.9)";
 }
 
+function getTowerTier(tower, def) {
+  if (!def?.upgrades?.length || !tower?.appliedUpgrades?.size) return 0;
+  let tier = 0;
+  for (const up of def.upgrades) {
+    if (tower.appliedUpgrades.has(up.id)) tier = Math.max(tier, up.tier ?? 0);
+  }
+  return tier;
+}
+
+function getTowerPathAccent(tower, def) {
+  if (!def?.upgrades?.length || !tower?.appliedUpgrades?.size) return null;
+  const tier1 = def.upgrades.filter((u) => (u.tier ?? 1) === 1);
+  if (!tier1.length) return null;
+  const chosen = tier1.find((u) => tower.appliedUpgrades.has(u.id));
+  if (!chosen) return null;
+  const idx = Math.max(0, tier1.indexOf(chosen));
+  const palette = getTowerPathPalette(def, tier1.length);
+  return palette[idx % palette.length] ?? def?.color ?? "#60a5fa";
+}
+
+function getTowerPathPalette(def, count) {
+  if (Array.isArray(def?.pathColors) && def.pathColors.length) return def.pathColors;
+  const base = parseHexColor(def?.color);
+  if (!base) return ["#60a5fa", "#f59e0b", "#a78bfa", "#34d399"];
+  const hsl = rgbToHsl(base.r, base.g, base.b);
+  const offsets = [24, -24, 60, -60];
+  const colors = [];
+  const wanted = Math.max(2, count || 2);
+  for (let i = 0; i < wanted; i++) {
+    const hue = (hsl.h + offsets[i % offsets.length] + 360) % 360;
+    const sat = clamp(hsl.s * 1.05, 0.2, 0.9);
+    const lum = clamp(hsl.l + (i % 2 === 0 ? 0.08 : -0.04), 0.25, 0.8);
+    const rgb = hslToRgb(hue, sat, lum);
+    colors.push(rgbToCss(rgb));
+  }
+  return colors;
+}
+
+function parseHexColor(hex) {
+  if (!hex || typeof hex !== "string") return null;
+  const h = hex.replace("#", "").trim();
+  if (h.length === 3) {
+    const r = Number.parseInt(h[0] + h[0], 16);
+    const g = Number.parseInt(h[1] + h[1], 16);
+    const b = Number.parseInt(h[2] + h[2], 16);
+    return { r, g, b };
+  }
+  if (h.length === 6) {
+    const r = Number.parseInt(h.slice(0, 2), 16);
+    const g = Number.parseInt(h.slice(2, 4), 16);
+    const b = Number.parseInt(h.slice(4, 6), 16);
+    return { r, g, b };
+  }
+  return null;
+}
+
+function rgbToHsl(r, g, b) {
+  const nr = r / 255;
+  const ng = g / 255;
+  const nb = b / 255;
+  const max = Math.max(nr, ng, nb);
+  const min = Math.min(nr, ng, nb);
+  const delta = max - min;
+  let h = 0;
+  if (delta > 0) {
+    if (max === nr) h = ((ng - nb) / delta) % 6;
+    else if (max === ng) h = (nb - nr) / delta + 2;
+    else h = (nr - ng) / delta + 4;
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+  const l = (max + min) / 2;
+  const s = delta === 0 ? 0 : delta / (1 - Math.abs(2 * l - 1));
+  return { h, s, l };
+}
+
+function hslToRgb(h, s, l) {
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  let r1 = 0;
+  let g1 = 0;
+  let b1 = 0;
+  if (h < 60) {
+    r1 = c;
+    g1 = x;
+  } else if (h < 120) {
+    r1 = x;
+    g1 = c;
+  } else if (h < 180) {
+    g1 = c;
+    b1 = x;
+  } else if (h < 240) {
+    g1 = x;
+    b1 = c;
+  } else if (h < 300) {
+    r1 = x;
+    b1 = c;
+  } else {
+    r1 = c;
+    b1 = x;
+  }
+  return {
+    r: Math.round((r1 + m) * 255),
+    g: Math.round((g1 + m) * 255),
+    b: Math.round((b1 + m) * 255),
+  };
+}
+
+function rgbToCss({ r, g, b }) {
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+function drawTierPips(ctx, x, y, tier, color) {
+  const count = Math.min(5, tier);
+  const radius = 14;
+  const start = Math.PI * 0.85;
+  const end = Math.PI * 0.15;
+  ctx.save();
+  ctx.fillStyle = withAlpha(color, 0.9);
+  for (let i = 0; i < count; i++) {
+    const t = count === 1 ? 0.5 : i / (count - 1);
+    const ang = start + (end - start) * t;
+    const px = x + Math.cos(ang) * radius;
+    const py = y + Math.sin(ang) * radius;
+    ctx.beginPath();
+    ctx.arc(px, py, 2.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawTierCrown(ctx, x, y, tier, color) {
+  if (tier <= 0) return;
+  const t = Math.min(5, tier);
+  const baseW = 10 + t * 0.8;
+  const baseH = 4 + t * 0.3;
+  const spikeH = 5 + t * 0.6;
+  ctx.save();
+  ctx.globalAlpha = 0.9;
+  ctx.fillStyle = withAlpha(color, 0.9);
+  ctx.strokeStyle = "rgba(8,10,18,0.6)";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(x - baseW * 0.5, y + baseH * 0.5);
+  ctx.lineTo(x - baseW * 0.35, y - spikeH * 0.4);
+  ctx.lineTo(x - baseW * 0.05, y + baseH * 0.1);
+  ctx.lineTo(x, y - spikeH);
+  ctx.lineTo(x + baseW * 0.05, y + baseH * 0.1);
+  ctx.lineTo(x + baseW * 0.35, y - spikeH * 0.4);
+  ctx.lineTo(x + baseW * 0.5, y + baseH * 0.5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  if (tier >= 3) {
+    ctx.fillStyle = "rgba(251,191,36,0.9)";
+    ctx.beginPath();
+    ctx.arc(x, y - spikeH * 0.3, 2.6, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (tier === 2) {
+    ctx.fillStyle = "rgba(231,236,255,0.85)";
+    ctx.beginPath();
+    ctx.arc(x, y - spikeH * 0.15, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawTierOverlay(ctx, x, y, tier, color) {
+  const c = withAlpha(color, 0.7);
+  ctx.save();
+  ctx.strokeStyle = c;
+  ctx.lineWidth = 2;
+  if (tier >= 1) {
+    ctx.globalAlpha = 0.45;
+    ctx.beginPath();
+    ctx.arc(x, y, 12, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  if (tier >= 2) {
+    ctx.globalAlpha = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(x - 10, y - 6);
+    ctx.lineTo(x - 4, y - 12);
+    ctx.lineTo(x + 4, y - 12);
+    ctx.lineTo(x + 10, y - 6);
+    ctx.lineTo(x + 10, y + 6);
+    ctx.lineTo(x + 4, y + 12);
+    ctx.lineTo(x - 4, y + 12);
+    ctx.lineTo(x - 10, y + 6);
+    ctx.closePath();
+    ctx.stroke();
+  }
+  if (tier >= 3) {
+    ctx.globalAlpha = 0.6;
+    ctx.fillStyle = withAlpha(color, 0.35);
+    ctx.beginPath();
+    ctx.moveTo(x, y - 16);
+    ctx.lineTo(x + 6, y - 6);
+    ctx.lineTo(x + 16, y);
+    ctx.lineTo(x + 6, y + 6);
+    ctx.lineTo(x, y + 16);
+    ctx.lineTo(x - 6, y + 6);
+    ctx.lineTo(x - 16, y);
+    ctx.lineTo(x - 6, y - 6);
+    ctx.closePath();
+    ctx.fill();
+  }
+  if (tier >= 4) {
+    ctx.globalAlpha = 0.7;
+    ctx.strokeStyle = withAlpha(color, 0.85);
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.arc(x, y, 18, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  ctx.restore();
+}
+
 function hash01(s) {
   // Deterministic hash -> [0,1). Good enough for animation phase offsets.
   const str = String(s || "");
@@ -642,5 +940,76 @@ function withAlpha(color, a) {
       return `rgba(${parts[0]}, ${parts[1]}, ${parts[2]}, ${a})`;
     });
   }
+  if (color.startsWith("rgb")) {
+    return color.replace(/rgb\(([^)]+)\)/, (m, inner) => `rgba(${inner}, ${a})`);
+  }
   return color;
+}
+
+function drawAllySigil(ctx, type, size, color) {
+  ctx.save();
+  ctx.strokeStyle = withAlpha(color, 0.9);
+  ctx.fillStyle = withAlpha(color, 0.75);
+  ctx.lineWidth = 2;
+  if (type === "summoner") {
+    ctx.beginPath();
+    ctx.moveTo(0, -size * 0.25);
+    ctx.lineTo(size * 0.2, 0);
+    ctx.lineTo(0, size * 0.25);
+    ctx.lineTo(-size * 0.2, 0);
+    ctx.closePath();
+    ctx.stroke();
+  } else if (type === "dronebay") {
+    ctx.beginPath();
+    ctx.moveTo(-size * 0.12, -size * 0.22);
+    ctx.lineTo(size * 0.06, -size * 0.04);
+    ctx.lineTo(-size * 0.04, -size * 0.04);
+    ctx.lineTo(size * 0.12, size * 0.22);
+    ctx.stroke();
+  } else if (type === "marshal") {
+    ctx.beginPath();
+    ctx.moveTo(-size * 0.18, -size * 0.05);
+    ctx.lineTo(0, size * 0.18);
+    ctx.lineTo(size * 0.18, -size * 0.05);
+    ctx.closePath();
+    ctx.stroke();
+  } else {
+    ctx.beginPath();
+    ctx.arc(0, 0, size * 0.12, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawAllyBody(ctx, type, size) {
+  const t = String(type || "");
+  ctx.beginPath();
+  if (t === "summoner") {
+    ctx.moveTo(-size * 0.4, 0);
+    ctx.lineTo(0, -size * 0.5);
+    ctx.lineTo(size * 0.4, 0);
+    ctx.lineTo(0, size * 0.5);
+  } else if (t === "dronebay") {
+    ctx.moveTo(-size * 0.45, -size * 0.1);
+    ctx.lineTo(size * 0.2, -size * 0.5);
+    ctx.lineTo(size * 0.5, 0);
+    ctx.lineTo(size * 0.2, size * 0.5);
+    ctx.lineTo(-size * 0.45, size * 0.1);
+  } else if (t === "marshal") {
+    ctx.moveTo(-size * 0.35, -size * 0.4);
+    ctx.lineTo(size * 0.35, -size * 0.4);
+    ctx.lineTo(size * 0.45, 0);
+    ctx.lineTo(0, size * 0.5);
+    ctx.lineTo(-size * 0.45, 0);
+  } else if (t === "beacon" || t === "banner") {
+    ctx.arc(0, 0, size * 0.38, 0, Math.PI * 2);
+  } else {
+    ctx.moveTo(-size * 0.4, -size * 0.2);
+    ctx.lineTo(0, -size * 0.5);
+    ctx.lineTo(size * 0.4, -size * 0.2);
+    ctx.lineTo(size * 0.2, size * 0.4);
+    ctx.lineTo(-size * 0.2, size * 0.4);
+  }
+  ctx.closePath();
+  ctx.fill();
 }

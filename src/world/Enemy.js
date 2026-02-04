@@ -22,6 +22,10 @@ export class Enemy {
 
     this.radius = def.radius ?? 10;
     this.tags = new Set(def.tags || []);
+    if (this.tags.has("boss")) {
+      const slowMul = def.bossSpeedMul ?? 0.7;
+      this.baseSpeed *= slowMul;
+    }
 
     this.ability = def.ability || null;
     this.abilities = (def.abilities || (def.ability ? [def.ability] : [])).map((a) => ({

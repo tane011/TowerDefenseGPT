@@ -26,6 +26,16 @@ function rgbToCss({ r, g, b }, a = 1) {
   return `rgba(${r},${g},${b},${a})`;
 }
 
+function withAlpha(color, a) {
+  if (color.startsWith("rgba")) {
+    return color.replace(/rgba\(([^,]+),([^,]+),([^,]+),[^)]+\)/, `rgba($1,$2,$3,${a})`);
+  }
+  if (color.startsWith("rgb")) {
+    return color.replace(/rgb\(([^,]+),([^,]+),([^,]+)\)/, `rgba($1,$2,$3,${a})`);
+  }
+  return color;
+}
+
 function mix(a, b, t) {
   return {
     r: Math.round(a.r + (b.r - a.r) * t),
@@ -66,6 +76,34 @@ function drawBody(ctx, cx, cy, r, base) {
   drawHex(ctx, cx + r * 0.05, cy - r * 0.05, r * 0.6, 0.85);
   ctx.stroke();
   ctx.globalAlpha = 1;
+}
+
+function drawTowerBase(ctx, cx, cy, r, color) {
+  ctx.save();
+  ctx.globalAlpha = 0.9;
+  ctx.fillStyle = "rgba(8,10,18,0.6)";
+  ctx.beginPath();
+  ctx.arc(cx, cy + r * 0.55, r * 0.7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 0.65;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(2, r * 0.12);
+  ctx.beginPath();
+  ctx.arc(cx, cy + r * 0.55, r * 0.6, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawCore(ctx, cx, cy, r, color) {
+  ctx.save();
+  const g = ctx.createRadialGradient(cx, cy, r * 0.2, cx, cy, r);
+  g.addColorStop(0, withAlpha(color, 0.95));
+  g.addColorStop(1, withAlpha(color, 0.05));
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 }
 
 function drawHex(ctx, cx, cy, r, skew = 1) {
@@ -146,6 +184,8 @@ function towerSprite(defId, color) {
   const r = 22;
 
   drawBody(ctx, cx, cy, r, base);
+  drawTowerBase(ctx, cx, cy, r, rgbToCss(mix(base, { r: 231, g: 236, b: 255 }, 0.35), 0.8));
+  drawCore(ctx, cx, cy - r * 0.1, r * 0.25, rgbToCss(mix(base, { r: 255, g: 255, b: 255 }, 0.25), 0.9));
 
   // Emblems per tower type (simple but distinct).
   ctx.save();
@@ -219,6 +259,21 @@ function towerSprite(defId, color) {
     ctx.lineTo(cx + 2, cy - 2);
     ctx.lineTo(cx - 4, cy - 2);
     ctx.lineTo(cx + 8, cy + 14);
+    ctx.stroke();
+  } else if (defId === "minigunner") {
+    ctx.fillStyle = "rgba(8,10,18,0.65)";
+    for (let i = 0; i < 4; i++) {
+      const ang = (Math.PI / 2) * i;
+      const bx = cx + Math.cos(ang) * 8;
+      const by = cy + Math.sin(ang) * 8;
+      ctx.beginPath();
+      ctx.arc(bx, by, 3.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.strokeStyle = "rgba(231,236,255,0.85)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 9, 0, Math.PI * 2);
     ctx.stroke();
   } else if (defId === "mortar") {
     ctx.fillStyle = "rgba(8,10,18,0.55)";
@@ -391,6 +446,7 @@ function enemySprite(defId, color) {
   const r = defId === "golem" || defId === "colossus" || defId === "overlord" ? 26 : 22;
 
   drawBody(ctx, cx, cy, r, base);
+  drawCore(ctx, cx, cy + r * 0.1, r * 0.28, rgbToCss(mix(base, { r: 255, g: 255, b: 255 }, 0.2), 0.7));
 
   if (defId === "tank") {
     ctx.save();

@@ -44,6 +44,28 @@ export function advanceAlongPath(info, segIndex, segT, distance) {
   return { segIndex: info.segLens.length - 1, segT: 1, done: true };
 }
 
+export function retreatAlongPath(info, segIndex, segT, distance) {
+  // Returns { segIndex, segT, done } moving toward path start.
+  let i = segIndex;
+  let t = segT;
+  let remaining = distance;
+
+  while (remaining > 0 && i >= 0) {
+    const segLen = info.segLens[i] || 1e-6;
+    const distToStart = t * segLen;
+    if (remaining < distToStart) {
+      t -= remaining / segLen;
+      remaining = 0;
+      return { segIndex: i, segT: t, done: false };
+    }
+    remaining -= distToStart;
+    i -= 1;
+    t = 1;
+  }
+
+  return { segIndex: 0, segT: 0, done: true };
+}
+
 export function pathProgress01(info, segIndex, segT) {
   let distSoFar = 0;
   for (let i = 0; i < segIndex; i++) distSoFar += info.segLens[i] || 0;
