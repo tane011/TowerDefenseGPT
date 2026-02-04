@@ -1,0 +1,10 @@
+{
+  "name": "tower-defense-gpt",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/start.mjs",
+    "start:open": "node scripts/start.mjs --open"
+  }
+}
+

@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TowerDefenseGPT</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div id="layout">
+      <div id="game-area">
+        <canvas id="game-canvas" width="960" height="540"></canvas>
+
+        <div id="start-screen" class="overlay">
+          <div class="panel">
+            <h1>TowerDefenseGPT</h1>
+            <p class="muted">
+              Place towers on build tiles, stop enemies from reaching the base.
+              Branch upgrades and status effects create synergies.
+            </p>
+
+            <div class="row">
+              <label for="map-select">Map</label>
+              <select id="map-select"></select>
+            </div>
+            <canvas id="map-preview" width="260" height="150"></canvas>
+
+            <div class="row">
+              <label for="mode-select">Mode</label>
+              <select id="mode-select"></select>
+            </div>
+            <div id="mode-desc" class="muted small"></div>
+
+            <div class="modifiers">
+              <div class="mod-header">
+                <div class="mod-title">Modifiers</div>
+                <div class="mod-actions">
+                  <button id="modifier-random-btn" class="ghost">Randomize</button>
+                  <button id="modifier-all-btn" class="ghost">Add All</button>
+                  <button id="modifier-clear-btn" class="ghost">Clear</button>
+                </div>
+              </div>
+              <div id="modifier-count" class="muted small"></div>
+              <div id="modifier-list" class="modifier-list"></div>
+            </div>
+
+            <div class="controls">
+              <div class="kbd">
+                <span>Click</span>
+                <code>Place / Select</code>
+              </div>
+              <div class="kbd">
+                <span>Right‑Click</span>
+                <code>Cancel</code>
+              </div>
+              <div class="kbd">
+                <span>Space</span>
+                <code>Start Next Wave</code>
+              </div>
+              <div class="kbd">
+                <span>P</span>
+                <code>Pause</code>
+              </div>
+              <div class="kbd">
+                <span>Q</span>
+                <code>Quick Sell</code>
+              </div>
+              <div class="kbd">
+                <span>F</span>
+                <code>Fullscreen</code>
+              </div>
+              <div class="kbd">
+                <span>Esc</span>
+                <code>Cancel Build</code>
+              </div>
+            </div>
+
+            <button id="start-btn" class="primary">Start Run</button>
+            <p class="muted small">
+              Tip: Try combining <b>Frost</b> slows with <b>Cannon</b> splash, or
+              <b>Alchemist</b> armor shred with <b>Archer</b> crits.
+            </p>
+          </div>
+        </div>
+
+        <div id="game-over" class="overlay hidden">
+          <div class="panel">
+            <h2 id="game-over-title">Game Over</h2>
+            <p id="game-over-reason" class="muted"></p>
+            <button id="restart-btn" class="primary">Restart</button>
+          </div>
+        </div>
+      </div>
+
+      <aside id="side-panel">
+        <div class="stats">
+          <div class="stat">
+            <div class="label">Money</div>
+            <div id="stat-money" class="value">0</div>
+          </div>
+          <div class="stat">
+            <div class="label">Lives</div>
+            <div id="stat-lives" class="value">0</div>
+          </div>
+          <div class="stat">
+            <div class="label">Wave</div>
+            <div id="stat-wave" class="value">0</div>
+          </div>
+          <div class="stat">
+            <div class="label">Threat</div>
+            <div id="stat-threat" class="value">-</div>
+          </div>
+        </div>
+
+        <section class="card">
+          <h3>Build</h3>
+          <div id="tower-palette" class="palette"></div>
+          <div id="build-hint" class="muted small"></div>
+        </section>
+
+        <section class="card">
+          <h3>Selected</h3>
+          <div id="selected-info">Nothing selected.</div>
+          <div id="selected-actions"></div>
+        </section>
+
+        <section class="card">
+          <h3>Waves</h3>
+          <div class="actions">
+            <button id="next-wave-btn">Start Next Wave (Space)</button>
+            <button id="toggle-auto-btn">Auto: Off</button>
+          </div>
+          <div id="wave-preview" class="muted small"></div>
+        </section>
+
+        <section class="card">
+          <h3>Modifiers</h3>
+          <div id="active-modifiers" class="muted small">None</div>
+        </section>
+
+        <section class="card">
+          <h3>Log</h3>
+          <div id="log" class="log"></div>
+        </section>
+      </aside>
+    </div>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
