@@ -54,12 +54,15 @@ export class Tower {
       fireRateMul: 1,
       rangeMul: 1,
       projectileSpeedMul: 1,
+      stunImmune: false,
+      cleanseStun: false,
     };
 
     // Render-only animation state (driven by simulation events).
     this.aimAngle = 0;
     this.animRecoil = 0;
     this.animFlash = 0;
+    this.stunRemaining = 0;
   }
 
   resetBuffs() {
@@ -67,6 +70,8 @@ export class Tower {
     this.buffs.fireRateMul = 1;
     this.buffs.rangeMul = 1;
     this.buffs.projectileSpeedMul = 1;
+    this.buffs.stunImmune = false;
+    this.buffs.cleanseStun = false;
   }
 
   applyBuff(buff) {
@@ -75,6 +80,8 @@ export class Tower {
     if (buff.fireRateMul) this.buffs.fireRateMul *= buff.fireRateMul;
     if (buff.rangeMul) this.buffs.rangeMul *= buff.rangeMul;
     if (buff.projectileSpeedMul) this.buffs.projectileSpeedMul *= buff.projectileSpeedMul;
+    if (buff.stunImmune) this.buffs.stunImmune = true;
+    if (buff.cleanseStun) this.buffs.cleanseStun = true;
   }
 
   hasUpgrade(upgradeId) {
@@ -199,37 +206,37 @@ export class Tower {
     // Global upgrade scaling: upgrades cost more but make towers noticeably stronger.
     const upgradeCount = this.appliedUpgrades.size;
     if (upgradeCount > 0) {
-      const damageMul = 1 + upgradeCount * 0.08;
-      const fireMul = 1 + upgradeCount * 0.05;
-      const rangeMul = 1 + upgradeCount * 0.04;
-      const speedMul = 1 + upgradeCount * 0.03;
+      const damageMul = 1 + upgradeCount * 0.05;
+      const fireMul = 1 + upgradeCount * 0.03;
+      const rangeMul = 1 + upgradeCount * 0.025;
+      const speedMul = 1 + upgradeCount * 0.02;
       stats.damage *= damageMul;
       stats.fireRate *= fireMul;
       stats.range *= rangeMul;
       stats.projectileSpeed *= speedMul;
-      if (stats.splashRadius) stats.splashRadius *= 1 + upgradeCount * 0.04;
+      if (stats.splashRadius) stats.splashRadius *= 1 + upgradeCount * 0.02;
       if (stats.ability?.damage != null) stats.ability.damage *= damageMul;
       if (stats.ability?.summon) {
         if (stats.ability.summon.damage != null) stats.ability.summon.damage *= damageMul;
-        if (stats.ability.summon.hp != null) stats.ability.summon.hp *= 1 + upgradeCount * 0.06;
+        if (stats.ability.summon.hp != null) stats.ability.summon.hp *= 1 + upgradeCount * 0.04;
       }
-      if (stats.aura?.radius != null) stats.aura.radius *= 1 + upgradeCount * 0.04;
+      if (stats.aura?.radius != null) stats.aura.radius *= 1 + upgradeCount * 0.02;
     }
 
     // Global balance pass: fewer towers, higher impact per tower.
     const balance = {
-      damageMul: 1.5,
-      fireRateMul: 1.15,
-      rangeMul: 1.08,
-      projectileSpeedMul: 1.12,
-      splashRadiusMul: 1.12,
-      abilityDamageMul: 1.6,
-      auraRadiusMul: 1.08,
-      auraBuffMul: 1.08,
-      summonHpMul: 1.4,
-      summonDamageMul: 1.5,
-      summonRangeMul: 1.1,
-      summonFireRateMul: 1.12,
+      damageMul: 1.12,
+      fireRateMul: 1.04,
+      rangeMul: 1.03,
+      projectileSpeedMul: 1.03,
+      splashRadiusMul: 1.04,
+      abilityDamageMul: 1.12,
+      auraRadiusMul: 1.02,
+      auraBuffMul: 1.03,
+      summonHpMul: 1.12,
+      summonDamageMul: 1.1,
+      summonRangeMul: 1.02,
+      summonFireRateMul: 1.03,
     };
 
     stats.damage *= balance.damageMul;

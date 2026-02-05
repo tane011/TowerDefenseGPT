@@ -4,6 +4,7 @@ import { Enemy } from "../world/Enemy.js";
 import { Tower } from "../world/Tower.js";
 import { Ally } from "../world/Ally.js";
 import { aggregateModifiers, applyEnemyModifiers } from "./modifiers.js";
+import { clamp } from "../core/math.js";
 import { AuraSystem } from "../systems/AuraSystem.js";
 import { EnemySystem } from "../systems/EnemySystem.js";
 import { AllySystem } from "../systems/AllySystem.js";
@@ -48,6 +49,7 @@ export class Game {
       towerDefs: data.towerDefs,
       rng: this._rng,
       spawnAlly: (tower, stats, ability) => this.spawnAlly(tower, stats, ability),
+      addLives: (amount) => this.addLives(amount),
     });
     this._allySystem = new AllySystem({ rng: this._rng });
     this._projectileSystem = new ProjectileSystem();
@@ -58,6 +60,7 @@ export class Game {
       damageBase: (amt) => this.damageBase(amt),
       log: (msg) => this.log(msg),
       onFinalBossDeath: (enemy, duration) => this._handleFinalBossDeath(enemy, duration),
+      onBossLeak: (enemy) => this.bossReachedBase(enemy),
     });
     this._waveSystem = new WaveSystem({
       createWave: (waveNumber) => {
@@ -88,6 +91,7 @@ export class Game {
     this.modifiers = modifiers;
     this.modifierState = aggregateModifiers(modifiers);
     this.world.modifiers = this.modifierState;
+    this.world.pathInfos = this.pathInfos;
 
     this.world.towers.length = 0;
     this.world.enemies.length = 0;
@@ -103,8 +107,11 @@ export class Game {
     this.state.paused = false;
     const baseMoney = mapDef.startingMoney ?? 150;
     const baseLives = mapDef.startingLives ?? 20;
-    this.state.money = Math.max(0, Math.round((baseMoney + this.modifierState.start.moneyAdd) * this.modifierState.start.moneyMul));
-    this.state.lives = Math.max(1, Math.round((baseLives + this.modifierState.start.livesAdd) * this.modifierState.start.livesMul));
+    const modeStart = modeDef?.start || {};
+    const modeMoney = (baseMoney + (modeStart.moneyAdd ?? 0)) * (modeStart.moneyMul ?? 1);
+    const modeLives = (baseLives + (modeStart.livesAdd ?? 0)) * (modeStart.livesMul ?? 1);
+    this.state.money = Math.max(0, Math.round((modeMoney + this.modifierState.start.moneyAdd) * this.modifierState.start.moneyMul));
+    this.state.lives = Math.max(1, Math.round((modeLives + this.modifierState.start.livesAdd) * this.modifierState.start.livesMul));
     this.state.waveNumber = 0;
     this.state.autoNextWave = this.state.settings?.autoStartWaves ?? false;
     this.state.gameModeId = modeDef?.id ?? null;
@@ -127,12 +134,27 @@ export class Game {
     this.state.money += Math.max(0, Math.round(amount));
   }
 
+  addLives(amount) {
+    const value = Math.max(0, Math.round(amount));
+    if (!value) return;
+    this.state.lives += value;
+    this.log?.(`Base reinforced: +${value} lives.`);
+  }
+
   damageBase(amount) {
     this.state.lives -= Math.max(0, Math.round(amount));
     if (this.state.lives <= 0) {
       this.state.lives = 0;
       this.gameOver("Your base fell.");
     }
+  }
+
+  bossReachedBase(enemy) {
+    if (this.state.mode !== "playing") return;
+    this.state.lives = 0;
+    const name = enemy?.name || "Boss";
+    this.log?.(`${name} breached the base!`);
+    this.gameOver("A boss reached the base.");
   }
 
   gameOver(reason) {
@@ -177,11 +199,217 @@ export class Game {
     const def = this._data.enemyDefs[enemyId];
     if (!def) throw new Error(`Unknown enemyId: ${enemyId}`);
     const idx = Math.max(0, Math.min(this.pathInfos.length - 1, pathIndex));
-    const enemy = new Enemy(def, this.pathInfos[idx], opts);
+    const enemy = new Enemy(def, this.pathInfos[idx], { ...opts, pathIndex: idx });
     enemy.pathIndex = idx;
     applyEnemyModifiers(enemy, this.modifierState);
     if (this._seenEnemyIds) this._seenEnemyIds.add(enemyId);
     return enemy;
+  }
+
+  adminAddMoney(amount = 0) {
+    const value = Number.isFinite(amount) ? amount : 0;
+    this.state.money = Math.max(0, Math.round(this.state.money + value));
+    this.log?.(`Admin: +${Math.round(value)}g`);
+  }
+
+  adminSetMoney(amount = 0) {
+    const value = Number.isFinite(amount) ? amount : 0;
+    this.state.money = Math.max(0, Math.round(value));
+    this.log?.(`Admin: Money set to ${this.state.money}g`);
+  }
+
+  adminAddLives(amount = 0) {
+    const value = Number.isFinite(amount) ? amount : 0;
+    this.state.lives = Math.max(1, Math.round(this.state.lives + value));
+    this.log?.(`Admin: +${Math.round(value)} lives`);
+  }
+
+  adminSetLives(amount = 0) {
+    const value = Number.isFinite(amount) ? amount : 0;
+    this.state.lives = Math.max(1, Math.round(value));
+    this.log?.(`Admin: Lives set to ${this.state.lives}`);
+  }
+
+  adminSpawnEnemy(enemyId, count = 1, pathIndex = null, modConfig = null) {
+    if (!enemyId || !this._data.enemyDefs[enemyId]) return false;
+    if (!this.pathInfos.length) return false;
+    const amount = Math.max(1, Math.round(count));
+    const mod = this._buildEnemyAdminMod(modConfig);
+    for (let i = 0; i < amount; i++) {
+      const pick =
+        pathIndex == null
+          ? Math.floor(this._rng() * this.pathInfos.length)
+          : Math.max(0, Math.min(this.pathInfos.length - 1, pathIndex));
+      const enemy = this.spawnEnemy(enemyId, pick, {});
+      this._applyEnemyAdminMod(enemy, mod);
+    }
+    this.log?.(`Admin: Spawned ${amount}x ${this._data.enemyDefs[enemyId].name}`);
+    return true;
+  }
+
+  adminApplyEnemyModifiers(modConfig = null) {
+    const mod = this._buildEnemyAdminMod(modConfig);
+    for (const enemy of this.world.enemies) {
+      if (!enemy.alive) continue;
+      this._applyEnemyAdminMod(enemy, mod);
+    }
+    this.log?.("Admin: Applied modifiers to live enemies.");
+  }
+
+  adminClearEnemyEffects() {
+    for (const enemy of this.world.enemies) {
+      if (!enemy.alive) continue;
+      enemy.effects = [];
+    }
+    this.log?.("Admin: Cleared enemy effects.");
+  }
+
+  adminSpawnSummons(towerDefId, count = 1, pathIndex = null) {
+    const towerDef = this._data.towerDefs[towerDefId];
+    if (!towerDef || !this.pathInfos.length) return false;
+    const dummy = new Tower(towerDef, 0, 0, { x: 0, y: 0 });
+    const stats = dummy.computeStats(towerDef, { modifiers: this.modifierState });
+    const ability = stats.ability;
+    if (!ability || ability.type !== "summon" || !ability.summon) return false;
+    const summon = ability.summon;
+    const amount = Math.max(1, Math.round(count));
+    for (let i = 0; i < amount; i++) {
+      const pick =
+        pathIndex == null
+          ? Math.floor(this._rng() * this.pathInfos.length)
+          : Math.max(0, Math.min(this.pathInfos.length - 1, pathIndex));
+      const pathInfo = this.pathInfos[pick];
+      const segIndex = Math.max(0, pathInfo.segLens.length - 1);
+      const segT = Math.max(0, Math.min(1, 1 - (summon.spawnOffset ?? 0) * (i + 1)));
+      const allyDef = {
+        id: summon.id || "summoned",
+        name: summon.name || "Ally",
+        hp: summon.hp ?? 40,
+        speed: summon.speed ?? 60,
+        range: summon.range ?? 100,
+        fireRate: summon.fireRate ?? 1,
+        damage: summon.damage ?? 6,
+        damageType: summon.damageType ?? stats.damageType,
+        projectileSpeed: summon.projectileSpeed ?? stats.projectileSpeed,
+        splashRadius: summon.splashRadius ?? 0,
+        onHitEffects: summon.onHitEffects || [],
+        bonusTags: summon.bonusTags || null,
+        bonusMult: summon.bonusMult ?? 1,
+        chain: summon.chain || null,
+        radius: summon.radius ?? 8,
+        lifetime: summon.lifetime ?? 16,
+        color: summon.color ?? towerDef?.color ?? "#34d399",
+      };
+      const ally = new Ally(allyDef, pathInfo, {
+        segIndex,
+        segT,
+        sourceTowerId: null,
+        sourceDefId: towerDef.id,
+      });
+      this.world.allies.push(ally);
+    }
+    this.log?.(`Admin: Summoned ${amount}x ${towerDef.name} unit`);
+    return true;
+  }
+
+  adminClearEnemies() {
+    this.world.enemies = [];
+    this.log?.("Admin: Cleared enemies.");
+  }
+
+  adminClearProjectiles() {
+    this.world.projectiles = [];
+    this.world.vfx = [];
+    this.log?.("Admin: Cleared projectiles + VFX.");
+  }
+
+  adminResetCooldowns() {
+    for (const t of this.world.towers) {
+      t.cooldown = 0;
+      t.abilityCooldown = 0;
+    }
+    for (const a of this.world.allies) {
+      a.cooldown = 0;
+    }
+    this.log?.("Admin: Reset tower/ally cooldowns.");
+  }
+
+  _buildEnemyAdminMod(config) {
+    const preset = String(config?.preset || "none");
+    const mod = {
+      hpMul: Number.isFinite(config?.hpMul) ? config.hpMul : 1,
+      speedMul: Number.isFinite(config?.speedMul) ? config.speedMul : 1,
+      eliteMult: Number.isFinite(config?.eliteMult) ? config.eliteMult : 1,
+      shieldAdd: Number.isFinite(config?.shieldAdd) ? config.shieldAdd : 0,
+      armorAdd: Number.isFinite(config?.armorAdd) ? config.armorAdd : 0,
+      resistAdd: Number.isFinite(config?.resistAdd) ? config.resistAdd : 0,
+      regenAdd: 0,
+      shieldRegenAdd: 0,
+      damageToBaseMul: 1,
+      effects: [],
+    };
+    const presets = {
+      fast: { speedMul: 1.5, hpMul: 0.85 },
+      tanky: { hpMul: 1.8, speedMul: 0.75, armorAdd: 2 },
+      shielded: { shieldAdd: 30 },
+      elite: { eliteMult: 1.6, hpMul: 1.2 },
+      berserk: { hpMul: 1.3, speedMul: 1.2, damageToBaseMul: 1.4 },
+      arcane: { resistAdd: 0.25, hpMul: 1.1 },
+      haste: { effects: [{ type: "haste", magnitude: 0.4, duration: 6 }] },
+      regen: { regenAdd: 2 },
+    };
+    const presetData = presets[preset];
+    if (presetData) {
+      if (presetData.hpMul) mod.hpMul *= presetData.hpMul;
+      if (presetData.speedMul) mod.speedMul *= presetData.speedMul;
+      if (presetData.eliteMult) mod.eliteMult *= presetData.eliteMult;
+      if (presetData.damageToBaseMul) mod.damageToBaseMul *= presetData.damageToBaseMul;
+      if (presetData.shieldAdd) mod.shieldAdd += presetData.shieldAdd;
+      if (presetData.armorAdd) mod.armorAdd += presetData.armorAdd;
+      if (presetData.resistAdd) mod.resistAdd += presetData.resistAdd;
+      if (presetData.regenAdd) mod.regenAdd += presetData.regenAdd;
+      if (presetData.shieldRegenAdd) mod.shieldRegenAdd += presetData.shieldRegenAdd;
+      if (presetData.effects) mod.effects.push(...presetData.effects.map((e) => ({ ...e })));
+    }
+    return mod;
+  }
+
+  _applyEnemyAdminMod(enemy, mod) {
+    if (!enemy || !mod) return;
+    if (mod.speedMul && mod.speedMul !== 1) enemy.baseSpeed *= mod.speedMul;
+    if (mod.hpMul && mod.hpMul !== 1) {
+      const ratio = enemy.maxHp > 0 ? enemy.hp / enemy.maxHp : 1;
+      enemy.maxHp = Math.max(1, Math.round(enemy.maxHp * mod.hpMul));
+      enemy.hp = Math.min(enemy.maxHp, Math.max(1, Math.round(enemy.maxHp * ratio)));
+    }
+    if (mod.eliteMult && mod.eliteMult > 1) {
+      enemy.tags?.add?.("elite");
+      enemy.maxHp = Math.max(1, Math.round(enemy.maxHp * mod.eliteMult));
+      enemy.hp = enemy.maxHp;
+      enemy.reward = Math.round(enemy.reward * Math.max(1, mod.eliteMult * 0.6));
+      enemy.radius = Math.round(enemy.radius * Math.min(1.25, 1 + (mod.eliteMult - 1) * 0.2));
+    }
+    if (mod.shieldAdd) {
+      enemy._maxShield = Math.max(0, (enemy._maxShield ?? 0) + mod.shieldAdd);
+      enemy._shield = Math.min(enemy._maxShield, (enemy._shield ?? 0) + mod.shieldAdd);
+    }
+    if (mod.armorAdd) enemy.armor = Math.max(0, (enemy.armor ?? 0) + mod.armorAdd);
+    if (mod.resistAdd) {
+      const types = ["physical", "fire", "ice", "poison", "arcane", "lightning"];
+      for (const type of types) {
+        const cur = enemy.resist?.[type] ?? 0;
+        if (!enemy.resist) enemy.resist = {};
+        enemy.resist[type] = clamp(cur + mod.resistAdd, -0.9, 0.95);
+      }
+    }
+    if (mod.regenAdd) enemy._regen = Math.max(0, (enemy._regen ?? 0) + mod.regenAdd);
+    if (mod.shieldRegenAdd) enemy._shieldRegen = Math.max(0, (enemy._shieldRegen ?? 0) + mod.shieldRegenAdd);
+    if (mod.damageToBaseMul && mod.damageToBaseMul !== 1) {
+      enemy.damageToBase = Math.max(1, Math.round(enemy.damageToBase * mod.damageToBaseMul));
+    }
+    if (mod.effects?.length) {
+      for (const fx of mod.effects) enemy.applyEffect(fx);
+    }
   }
 
   spawnAlly(tower, stats, ability) {
@@ -241,6 +469,7 @@ export class Game {
         segIndex: pick.segIndex,
         segT: Math.max(0, Math.min(1, pick.segT + spawnOffset * (i + 1))),
         sourceTowerId: tower.id,
+        sourceDefId: tower.defId,
       });
       this.world.allies.push(ally);
     }
@@ -274,7 +503,7 @@ export class Game {
   getTowerCost(def) {
     const base = def?.cost ?? 0;
     const mul = this.modifierState?.tower?.costMul ?? 1;
-    const balanceMul = 1.5;
+    const balanceMul = 1.3;
     const endgameMul = def?.endgame ? 5 : 1;
     return Math.max(0, Math.round(base * mul * balanceMul * endgameMul));
   }
@@ -282,7 +511,7 @@ export class Game {
   getUpgradeCost(upgrade) {
     const base = upgrade?.cost ?? 0;
     const mul = this.modifierState?.tower?.upgradeCostMul ?? 1;
-    const balanceMul = 1.7;
+    const balanceMul = 1.45;
     return Math.max(0, Math.round(base * mul * balanceMul));
   }
 
@@ -364,6 +593,11 @@ export class Game {
     return this._waveSystem.startNextWave();
   }
 
+  skipWave() {
+    if (this.state.mode !== "playing") return false;
+    return this._waveSystem.skipWave();
+  }
+
   toggleAuto() {
     this.state.autoNextWave = !this.state.autoNextWave;
     this.log(this.state.autoNextWave ? "Auto waves: ON" : "Auto waves: OFF");
@@ -412,7 +646,16 @@ export class Game {
   }
 
   _handleInput() {
+    if (this._input.consumePressed("Backquote")) this.ui?.toggleAdmin?.();
+    if (!this.ui?.isAdminOpen?.() && navigator.webdriver && this._input.consumePressed("KeyB")) this.ui?.toggleAdmin?.();
     if (this._input.consumePressed("KeyH")) this.ui?.toggleTutorial?.();
+    if (this.ui?.isAdminOpen?.()) {
+      if (this._input.consumePressed("Escape") || this._input.consumePressed("Backquote") || (navigator.webdriver && this._input.consumePressed("KeyB"))) {
+        this.ui?.hideAdmin?.();
+      }
+      this._input.consumeClicks();
+      return;
+    }
     if (this.ui?.isTutorialOpen?.()) {
       if (this._input.consumePressed("Escape")) this.ui?.hideTutorial?.();
       this._input.consumeClicks();
@@ -517,11 +760,17 @@ export class Game {
   }
 
   _syncUi() {
+    const bossWave = Boolean(this.state.inWave && this._waveSystem.waveMeta?.hasBoss);
+    const spawnPending = Boolean(this.state.inWave && this._waveSystem.hasPendingSpawns?.());
+    const spawnRemaining = spawnPending ? this._waveSystem.spawnTimeRemaining?.() : 0;
     this.ui?.setStats?.({
       money: this.state.money,
       lives: this.state.lives,
       wave: this.state.waveNumber,
       inWave: this.state.inWave,
+      bossWave,
+      spawnPending,
+      spawnRemaining,
       auto: this.state.autoNextWave,
       threat: this._waveSystem.waveMeta?.threat ?? null,
       waveGoal: this.modeDef?.totalWaves ?? null,
@@ -544,6 +793,7 @@ export class Game {
   // Used by the Playwright-based loop to “see” the game without graphics.
   renderGameToText() {
     const selected = this.getSelectedTower();
+    const boss = this.world.enemies.find((e) => e.alive && e.tags?.has?.("boss"));
     const payload = {
       coord: "origin top-left; x right; y down; units = canvas px",
       mode: this.state.mode,
@@ -603,7 +853,15 @@ export class Game {
           fx: e.effects.map((fx) => fx.type),
         })),
     };
-    const boss = this.world.enemies.find((e) => e.alive && e.tags?.has?.("boss"));
+    if (boss) {
+      payload.boss = {
+        id: boss.defId,
+        name: boss.name,
+        hp: Math.round(boss.hp),
+        maxHp: boss.maxHp,
+        phase: boss.phase ?? 1,
+      };
+    }
     if (boss?._pendingAbilities?.length) {
       const cast = boss._pendingAbilities[0];
       payload.boss_cast = {

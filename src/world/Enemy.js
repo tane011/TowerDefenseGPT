@@ -28,14 +28,12 @@ export class Enemy {
     }
 
     this.ability = def.ability || null;
-    this.abilities = (def.abilities || (def.ability ? [def.ability] : [])).map((a) => ({
-      ...a,
-      cooldown: a.cooldown ?? 8,
-      timer: a.cooldown ?? 8,
-    }));
+    this.abilities = this._initAbilities(def.abilities || (def.ability ? [def.ability] : []));
+    this._ensureBossStunAbility();
     this.onDeathSpawn = def.onDeathSpawn || null;
 
     this.pathInfo = pathInfo;
+    this.pathIndex = opts.pathIndex ?? 0;
     this.segIndex = opts.segIndex ?? 0;
     this.segT = opts.segT ?? 0;
     this.progress01 = 0;
@@ -49,6 +47,13 @@ export class Enemy {
     this.isFinalBoss = Boolean(opts.finalBoss);
     this.finalBossMode = opts.finalBossMode ?? null;
     this.finalBossId = opts.finalBossId ?? (this.isFinalBoss ? def.id : null);
+    this.phase = 1;
+    this._phase2 = def.phase2 || null;
+    this._phase2Triggered = false;
+    this._phase2Threshold = this._phase2?.triggerPct ?? 0.2;
+    this._phase2Transition = null;
+    this._invulnerableTime = 0;
+    this._phase2Ready = false;
 
     // Active status effects.
     // Shape: { type, duration, remaining, magnitude, tickEvery, tickTimer, mode }
@@ -157,18 +162,45 @@ export class Enemy {
   _armorAfterEffects() {
     let armor = this.armor;
     const shred = this.effects.find((e) => e.type === "armor_reduction");
-    if (!shred) return armor;
-    if (shred.mode === "percent") {
-      armor = armor * (1 - clamp(shred.magnitude, 0, 0.9));
-    } else {
-      armor = armor - Math.max(0, shred.magnitude);
+    if (shred) {
+      if (shred.mode === "percent") {
+        armor = armor * (1 - clamp(shred.magnitude, 0, 0.9));
+      } else {
+        armor = armor - Math.max(0, shred.magnitude);
+      }
+    }
+    const boost = this.effects.find((e) => e.type === "armor_boost");
+    if (boost) {
+      if (boost.mode === "percent") {
+        armor = armor * (1 + clamp(boost.magnitude, 0, 1.5));
+      } else {
+        armor = armor + Math.max(0, boost.magnitude);
+      }
     }
     return Math.max(0, armor);
+  }
+
+  _currentMitigation() {
+    let mitigation = 0;
+    for (const fx of this.effects) {
+      if (fx.type === "phase" || fx.type === "fortify") {
+        mitigation = Math.max(mitigation, clamp(fx.magnitude ?? 0, 0, 0.95));
+      }
+    }
+    return mitigation;
   }
 
   takeDamage(amount, damageType = "physical") {
     if (!this._alive) return { dealt: 0, killed: false };
     let dmg = Math.max(0, amount);
+
+    if (this._invulnerableTime > 0) return { dealt: 0, killed: false };
+
+    const mitigation = this._currentMitigation();
+    if (mitigation > 0) {
+      dmg *= 1 - mitigation;
+      if (dmg <= 0) return { dealt: 0, killed: false };
+    }
 
     // Shields absorb first.
     if (this._shield > 0) {
@@ -196,6 +228,16 @@ export class Enemy {
     }
 
     dmg = Math.max(0, dmg);
+
+    if (this._phase2 && !this._phase2Triggered) {
+      const thresholdHp = Math.max(1, this.maxHp * this._phase2Threshold);
+      if (this.hp - dmg <= thresholdHp) {
+        this.hp = thresholdHp;
+        this._beginPhase2Transition();
+        return { dealt: dmg, killed: false };
+      }
+    }
+
     this.hp -= dmg;
     if (this.hp <= 0) {
       this.hp = 0;
@@ -206,11 +248,29 @@ export class Enemy {
   }
 
   update(dt) {
-    if (!this._alive) return { reachedBase: false };
+    if (!this._alive) return { reachedBase: false, phaseShifted: false };
 
     // Update effects first (DOT can kill before reaching base).
     this._updateEffects(dt);
-    if (!this._alive) return { reachedBase: false };
+    if (!this._alive) return { reachedBase: false, phaseShifted: false };
+
+    if (this._phase2Transition) {
+      this._phase2Transition.remaining -= dt;
+      this._invulnerableTime = Math.max(0, this._phase2Transition.remaining);
+      this.progress01 = pathProgress01(this.pathInfo, this.segIndex, this.segT);
+      if (this._phase2Transition.remaining <= 0) {
+        this._phase2Transition = null;
+        this._invulnerableTime = 0;
+        this._phase2Ready = true;
+        return { reachedBase: false, phaseShifted: true, phaseStage: "complete" };
+      }
+      return { reachedBase: false, phaseShifted: false, phaseStage: "transition" };
+    }
+
+    if (this._maybeTriggerPhase2()) {
+      this.progress01 = pathProgress01(this.pathInfo, this.segIndex, this.segT);
+      return { reachedBase: false, phaseShifted: true, phaseStage: "start" };
+    }
 
     // Regen/shield regen.
     if (this._regen > 0 && this.hp > 0 && this.hp < this.maxHp) {
@@ -223,7 +283,7 @@ export class Enemy {
     const stunned = this._isStunned();
     if (stunned) {
       this.progress01 = pathProgress01(this.pathInfo, this.segIndex, this.segT);
-      return { reachedBase: false };
+      return { reachedBase: false, phaseShifted: false };
     }
 
     const slow = this._currentSlowMagnitude();
@@ -244,7 +304,124 @@ export class Enemy {
     this.y = p.y;
     this.progress01 = pathProgress01(this.pathInfo, this.segIndex, this.segT);
 
-    return { reachedBase: next.done };
+    return { reachedBase: next.done, phaseShifted: false };
+  }
+
+  _initAbilities(list) {
+    return (list || []).map((a) => ({
+      ...a,
+      cooldown: a.cooldown ?? 8,
+      timer: a.cooldown ?? 8,
+    }));
+  }
+
+  _ensureBossStunAbility() {
+    if (!this.tags.has("boss")) return;
+    const hasStun = this.abilities.some((a) => String(a.type || "").toLowerCase() === "tower_stun");
+    if (hasStun) return;
+    const stun = {
+      type: "tower_stun",
+      name: "Disruptive Shock",
+      description: "Stuns towers caught in the pulse.",
+      cooldown: 14,
+      windup: 1.2,
+      radius: 130,
+      duration: 1.6,
+      color: "rgba(244,114,182,0.7)",
+    };
+    this.abilities.push({
+      ...stun,
+      cooldown: stun.cooldown ?? 8,
+      timer: stun.cooldown ?? 8,
+    });
+  }
+
+  _maybeTriggerPhase2() {
+    if (!this._phase2 || this._phase2Triggered) return false;
+    if (this.maxHp <= 0) return false;
+    const pct = this.hp / this.maxHp;
+    if (pct > this._phase2Threshold) return false;
+    return this._beginPhase2Transition();
+  }
+
+  _beginPhase2Transition() {
+    const cfg = this._phase2;
+    if (!cfg) return false;
+    this._phase2Triggered = true;
+    const duration = Math.max(0.6, cfg.transitionDuration ?? 1.4);
+    this._phase2Transition = { remaining: duration, total: duration };
+    this._invulnerableTime = duration;
+    if (cfg.clearEffects !== false) this.effects = [];
+    return true;
+  }
+
+  _enterPhase2() {
+    const cfg = this._phase2;
+    if (!cfg) return false;
+    this.phase = 2;
+
+    if (cfg.speedMul != null) this.baseSpeed *= cfg.speedMul;
+    if (cfg.armorAdd != null) this.armor += cfg.armorAdd;
+    if (cfg.armorMul != null) this.armor *= cfg.armorMul;
+    if (cfg.resistAdd) {
+      for (const [k, v] of Object.entries(cfg.resistAdd)) {
+        this.resist[k] = clamp((this.resist[k] ?? 0) + v, -0.9, 0.95);
+      }
+    }
+    if (cfg.regen != null) this._regen = cfg.regen;
+    if (cfg.regenAdd != null) this._regen += cfg.regenAdd;
+    if (cfg.shieldRegen != null) this._shieldRegen = cfg.shieldRegen;
+    if (cfg.shieldRegenAdd != null) this._shieldRegen += cfg.shieldRegenAdd;
+
+    if (cfg.shield != null) {
+      this._maxShield = cfg.shield;
+      this._shield = cfg.shield;
+    } else if (cfg.shieldAdd != null) {
+      this._maxShield = Math.max(0, this._maxShield + cfg.shieldAdd);
+      this._shield = Math.max(this._shield, this._maxShield);
+    }
+
+    if (cfg.clearEffects !== false) this.effects = [];
+    if (cfg.abilities) this.abilities = this._initAbilities(cfg.abilities);
+    this._pendingAbilities = [];
+    this._ensureBossStunAbility();
+
+    this.hp = this.maxHp;
+    return true;
+  }
+
+  completePhase2Transition() {
+    if (!this._phase2Ready) return false;
+    this._phase2Ready = false;
+    return this._enterPhase2();
+  }
+
+  setPath(pathInfo, pathIndex, progress01 = 0) {
+    if (!pathInfo) return false;
+    const clamped = clamp(progress01, 0, 1);
+    const { segIndex, segT } = progressToSeg(pathInfo, clamped);
+    this.pathInfo = pathInfo;
+    this.pathIndex = pathIndex ?? this.pathIndex ?? 0;
+    this.segIndex = segIndex;
+    this.segT = segT;
+    const p = samplePath(this.pathInfo, this.segIndex, this.segT);
+    this.x = p.x;
+    this.y = p.y;
+    this.progress01 = clamped;
+    return true;
+  }
+
+  advanceBy(distance) {
+    const dist = Math.max(0, distance ?? 0);
+    if (!dist) return false;
+    const next = advanceAlongPath(this.pathInfo, this.segIndex, this.segT, dist);
+    this.segIndex = next.segIndex;
+    this.segT = next.segT;
+    const p = samplePath(this.pathInfo, this.segIndex, this.segT);
+    this.x = p.x;
+    this.y = p.y;
+    this.progress01 = pathProgress01(this.pathInfo, this.segIndex, this.segT);
+    return next.done;
   }
 
   _updateEffects(dt) {
@@ -269,4 +446,18 @@ export class Enemy {
     // Remove expired.
     this.effects = this.effects.filter((e) => e.remaining > 0);
   }
+}
+
+function progressToSeg(info, progress01) {
+  const target = clamp(progress01, 0, 1) * info.totalLen;
+  let distSoFar = 0;
+  for (let i = 0; i < info.segLens.length; i++) {
+    const segLen = info.segLens[i] || 1e-6;
+    if (distSoFar + segLen >= target) {
+      const t = segLen <= 0 ? 0 : (target - distSoFar) / segLen;
+      return { segIndex: i, segT: clamp(t, 0, 1) };
+    }
+    distSoFar += segLen;
+  }
+  return { segIndex: info.segLens.length - 1, segT: 1 };
 }

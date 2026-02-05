@@ -23,6 +23,7 @@ export class GameState {
       showAuraRings: true,
       vfxScale: 1,
       reduceMotion: false,
+      disableUiAnimations: false,
       showGrid: true,
       showDecor: true,
       showPathGlow: true,

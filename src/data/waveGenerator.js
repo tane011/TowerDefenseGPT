@@ -15,8 +15,11 @@ export function createWave(waveNumber, rng, map, enemyDefs, mode = null, modifie
   const eliteEvery = mode?.eliteEvery ?? 5;
   const bossEvery = mode?.bossEvery ?? 10;
   const seenSet = seenEnemyIds instanceof Set ? seenEnemyIds : new Set(seenEnemyIds || []);
-  const hpScale = difficulty.hpScale ?? 0.025;
-  const hpMul = (difficulty.hpMul ?? 1) * (1 + waveNumber * hpScale);
+  const hpScale = difficulty.hpScale ?? 0.022;
+  const lateStart = difficulty.hpLateStart ?? 18;
+  const lateScale = difficulty.hpLateScale ?? 0.008;
+  const lateRamp = waveNumber > lateStart ? 1 + (waveNumber - lateStart) * lateScale : 1;
+  const hpMul = (difficulty.hpMul ?? 1) * (1 + waveNumber * hpScale) * lateRamp;
   const seenShieldBase = difficulty.seenShieldBase ?? 8;
   const seenShieldScale = difficulty.seenShieldScale ?? 1.6;
   const seenShieldMul = difficulty.seenShieldMul ?? 1;
@@ -25,26 +28,28 @@ export function createWave(waveNumber, rng, map, enemyDefs, mode = null, modifie
   const baseBudget = 12 + waveNumber * 8 + Math.floor(waveNumber * waveNumber * 0.25) + (isFinal ? 25 : 0);
   const budget = Math.round(baseBudget * budgetMul);
 
-  const pool = [];
-  pool.push({ item: "grunt", w: 5 });
-  if (waveNumber >= 2) pool.push({ item: "runner", w: 3 });
-  if (waveNumber >= 3) pool.push({ item: "skirmisher", w: 3 });
-  if (waveNumber >= 4) pool.push({ item: "tank", w: 2 });
-  if (waveNumber >= 5) pool.push({ item: "brute", w: 2 });
-  if (waveNumber >= 6) pool.push({ item: "ward", w: 2 });
-  if (waveNumber >= 6) pool.push({ item: "shellback", w: 2 });
-  if (waveNumber >= 7) pool.push({ item: "splitter", w: 2 });
-  if (waveNumber >= 7) pool.push({ item: "mystic", w: 2 });
-  if (waveNumber >= 8) pool.push({ item: "leech", w: 2 });
-  if (waveNumber >= 9) pool.push({ item: "specter", w: 2 });
-  if (waveNumber >= 10) pool.push({ item: "glacier", w: 2 });
-  if (waveNumber >= 11) pool.push({ item: "phase", w: 1.6 });
-  if (waveNumber >= 12) pool.push({ item: "bombardier", w: 1.6 });
-  if (waveNumber >= 13) pool.push({ item: "dreadwing", w: 1.8 });
-  if (waveNumber >= 14) pool.push({ item: "carapace", w: 1.8 });
-  if (waveNumber >= 15) pool.push({ item: "siphon", w: 1.6 });
-  if (waveNumber >= 16) pool.push({ item: "bulwark", w: 1.4 });
-  if (waveNumber >= 18) pool.push({ item: "wyrm", w: 1.4 });
+  const pool = buildPool(mode?.enemyPool, waveNumber);
+  if (!pool.length) {
+    pool.push({ item: "grunt", w: 5 });
+    if (waveNumber >= 2) pool.push({ item: "runner", w: 3 });
+    if (waveNumber >= 3) pool.push({ item: "skirmisher", w: 3 });
+    if (waveNumber >= 4) pool.push({ item: "tank", w: 2 });
+    if (waveNumber >= 5) pool.push({ item: "brute", w: 2 });
+    if (waveNumber >= 6) pool.push({ item: "ward", w: 2 });
+    if (waveNumber >= 6) pool.push({ item: "shellback", w: 2 });
+    if (waveNumber >= 7) pool.push({ item: "splitter", w: 2 });
+    if (waveNumber >= 7) pool.push({ item: "mystic", w: 2 });
+    if (waveNumber >= 8) pool.push({ item: "leech", w: 2 });
+    if (waveNumber >= 9) pool.push({ item: "specter", w: 2 });
+    if (waveNumber >= 10) pool.push({ item: "glacier", w: 2 });
+    if (waveNumber >= 11) pool.push({ item: "phase", w: 1.6 });
+    if (waveNumber >= 12) pool.push({ item: "bombardier", w: 1.6 });
+    if (waveNumber >= 13) pool.push({ item: "dreadwing", w: 1.8 });
+    if (waveNumber >= 14) pool.push({ item: "carapace", w: 1.8 });
+    if (waveNumber >= 15) pool.push({ item: "siphon", w: 1.6 });
+    if (waveNumber >= 16) pool.push({ item: "bulwark", w: 1.4 });
+    if (waveNumber >= 18) pool.push({ item: "wyrm", w: 1.4 });
+  }
 
   const groups = randInt(rng, 2, 4);
   const events = [];
@@ -76,12 +81,14 @@ export function createWave(waveNumber, rng, map, enemyDefs, mode = null, modifie
 
   // Elite injection every 5 waves.
   if (eliteEvery > 0 && waveNumber % eliteEvery === 0) {
-    const elitePool = [];
-    if (waveNumber >= 16) elitePool.push({ item: "bulwark", w: 2 });
-    if (waveNumber >= 12) elitePool.push({ item: "shellback", w: 2 });
-    if (waveNumber >= 9) elitePool.push({ item: "brute", w: 2 });
-    if (waveNumber >= 6) elitePool.push({ item: "tank", w: 2 });
-    elitePool.push({ item: "grunt", w: 1 });
+    const elitePool = buildPool(mode?.elitePool, waveNumber);
+    if (!elitePool.length) {
+      if (waveNumber >= 16) elitePool.push({ item: "bulwark", w: 2 });
+      if (waveNumber >= 12) elitePool.push({ item: "shellback", w: 2 });
+      if (waveNumber >= 9) elitePool.push({ item: "brute", w: 2 });
+      if (waveNumber >= 6) elitePool.push({ item: "tank", w: 2 });
+      elitePool.push({ item: "grunt", w: 1 });
+    }
     const eliteId = pickWeighted(rng, elitePool);
     const eliteMult = (1.65 + t * 0.2) * (difficulty.eliteMult ?? 1) * (waveMods.eliteMultMul ?? 1);
     const eliteOpts = { eliteMult, hpMul };
@@ -99,11 +106,19 @@ export function createWave(waveNumber, rng, map, enemyDefs, mode = null, modifie
 
   // Boss every 10 waves (rotating pool) unless the mode defines a final boss wave.
   if (!isFinal && bossEvery > 0 && waveNumber % bossEvery === 0) {
-    const bossPool = [];
-    bossPool.push({ item: "golem", w: 3 });
-    if (waveNumber >= 20) bossPool.push({ item: "hydra", w: 3 });
-    if (waveNumber >= 25) bossPool.push({ item: "lich", w: 2 });
-    if (waveNumber >= 30) bossPool.push({ item: "colossus", w: 2 });
+    const bossPool = buildPool(mode?.bossPool, waveNumber);
+    if (!bossPool.length) {
+      bossPool.push({ item: "golem", w: 3 });
+      if (waveNumber >= 16) bossPool.push({ item: "oracle", w: 2 });
+      if (waveNumber >= 18) bossPool.push({ item: "tempest", w: 3 });
+      if (waveNumber >= 20) bossPool.push({ item: "hydra", w: 3 });
+      if (waveNumber >= 22) bossPool.push({ item: "mirror_warden", w: 2 });
+      if (waveNumber >= 24) bossPool.push({ item: "phoenix", w: 2 });
+      if (waveNumber >= 25) bossPool.push({ item: "lich", w: 2 });
+      if (waveNumber >= 28) bossPool.push({ item: "gravemaw", w: 2 });
+      if (waveNumber >= 30) bossPool.push({ item: "colossus", w: 2 });
+      if (waveNumber >= 34) bossPool.push({ item: "abyssal", w: 2 });
+    }
     const bossId = pickWeighted(rng, bossPool);
     const bossMult = (1 + Math.min(0.25, t * 0.1)) * (difficulty.bossMult ?? 1) * (waveMods.bossMultMul ?? 1);
     const bossOpts = { eliteMult: bossMult, hpMul };
@@ -138,19 +153,20 @@ export function createWave(waveNumber, rng, map, enemyDefs, mode = null, modifie
   }
 
   const rewardBase = 18 + waveNumber * 4 + (isFinal ? 40 : 0);
-  const rewardBonus = Math.max(
-    0,
-    Math.round(rewardBase * (waveMods.rewardBonusMul ?? 1) + (waveMods.rewardBonusAdd ?? 0))
-  );
+  const rewardMul = (difficulty.rewardBonusMul ?? 1) * (waveMods.rewardBonusMul ?? 1);
+  const rewardAdd = (difficulty.rewardBonusAdd ?? 0) + (waveMods.rewardBonusAdd ?? 0);
+  const rewardBonus = Math.max(0, Math.round(rewardBase * rewardMul + rewardAdd));
 
   // Extra elite chance (modifier-driven).
   if (waveMods.extraEliteChance && rng() < waveMods.extraEliteChance) {
-    const elitePool = [];
-    if (waveNumber >= 16) elitePool.push({ item: "bulwark", w: 2 });
-    if (waveNumber >= 12) elitePool.push({ item: "shellback", w: 2 });
-    if (waveNumber >= 9) elitePool.push({ item: "brute", w: 2 });
-    if (waveNumber >= 6) elitePool.push({ item: "tank", w: 2 });
-    elitePool.push({ item: "grunt", w: 1 });
+    const elitePool = buildPool(mode?.elitePool, waveNumber);
+    if (!elitePool.length) {
+      if (waveNumber >= 16) elitePool.push({ item: "bulwark", w: 2 });
+      if (waveNumber >= 12) elitePool.push({ item: "shellback", w: 2 });
+      if (waveNumber >= 9) elitePool.push({ item: "brute", w: 2 });
+      if (waveNumber >= 6) elitePool.push({ item: "tank", w: 2 });
+      elitePool.push({ item: "grunt", w: 1 });
+    }
     const eliteId = pickWeighted(rng, elitePool);
     const eliteMult = (1.45 + t * 0.15) * (difficulty.eliteMult ?? 1) * (waveMods.eliteMultMul ?? 1);
     const eliteOpts = { eliteMult, hpMul };
@@ -194,12 +210,14 @@ export function createWave(waveNumber, rng, map, enemyDefs, mode = null, modifie
     }
     events.push(...extra);
   }
+  const hasBoss = events.some((ev) => enemyDefs[ev.enemyId]?.tags?.includes?.("boss"));
   const summary = summarize(events);
 
   return {
     events,
     meta: {
       label: isFinal && mode?.finalBoss ? `Final Boss — ${enemyDefs[mode.finalBoss]?.name || mode.finalBoss}` : summary,
+      hasBoss,
       rewardBonus,
       threat: roundThreat(threat),
     },
@@ -214,4 +232,18 @@ function summarize(events) {
   const parts = [];
   for (const [k, v] of counts.entries()) parts.push(`${k}×${v}`);
   return parts.slice(0, 4).join(", ");
+}
+
+function buildPool(poolDef, waveNumber) {
+  if (!Array.isArray(poolDef)) return [];
+  const out = [];
+  for (const entry of poolDef) {
+    if (!entry?.item) continue;
+    const min = entry.minWave ?? 1;
+    const max = entry.maxWave ?? Number.POSITIVE_INFINITY;
+    if (waveNumber < min || waveNumber > max) continue;
+    const weight = entry.w ?? entry.weight ?? 1;
+    out.push({ item: entry.item, w: weight });
+  }
+  return out;
 }

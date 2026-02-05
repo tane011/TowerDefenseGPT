@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TowerDefenseGPT</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="./style.css" />
+    <link rel="stylesheet" href="./style.css?v=20260204g" />
   </head>
   <body>
     <div id="layout">
@@ -114,6 +114,96 @@
           </div>
         </div>
 
+        <div id="admin-panel" class="overlay hidden">
+          <div class="panel admin-panel">
+            <div class="admin-header">
+              <h2>Debug Menu</h2>
+              <button id="admin-close-btn" class="ghost">Close</button>
+            </div>
+            <p class="muted small">Press <b>~</b> to toggle. Use for testing and sandbox tweaks.</p>
+
+            <div class="admin-section">
+              <h3>Resources</h3>
+              <div class="admin-row">
+                <label for="admin-money-amount">Money</label>
+                <input id="admin-money-amount" type="number" min="0" step="10" value="200" />
+                <button id="admin-money-add" class="ghost">Add</button>
+                <button id="admin-money-set" class="ghost">Set</button>
+              </div>
+              <div class="admin-row">
+                <label for="admin-lives-amount">Lives</label>
+                <input id="admin-lives-amount" type="number" min="0" step="1" value="5" />
+                <button id="admin-lives-add" class="ghost">Add</button>
+                <button id="admin-lives-set" class="ghost">Set</button>
+              </div>
+            </div>
+
+            <div class="admin-section">
+              <h3>Spawns</h3>
+              <div class="admin-row">
+                <label for="admin-enemy-select">Enemy</label>
+                <select id="admin-enemy-select"></select>
+                <input id="admin-enemy-count" type="number" min="1" step="1" value="5" />
+                <select id="admin-enemy-path"></select>
+                <button id="admin-enemy-spawn" class="ghost">Spawn</button>
+              </div>
+              <div class="admin-row">
+                <label for="admin-ally-select">Unit</label>
+                <select id="admin-ally-select"></select>
+                <input id="admin-ally-count" type="number" min="1" step="1" value="3" />
+                <select id="admin-ally-path"></select>
+                <button id="admin-ally-spawn" class="ghost">Spawn</button>
+              </div>
+            </div>
+
+            <div class="admin-section">
+              <h3>Enemy Modifiers</h3>
+              <div class="admin-row admin-row-wide">
+                <label for="admin-enemy-preset">Preset</label>
+                <select id="admin-enemy-preset">
+                  <option value="none">None</option>
+                  <option value="fast">Fast</option>
+                  <option value="tanky">Tanky</option>
+                  <option value="shielded">Shielded</option>
+                  <option value="elite">Elite</option>
+                  <option value="berserk">Berserk</option>
+                  <option value="arcane">Arcane Ward</option>
+                  <option value="haste">Haste</option>
+                  <option value="regen">Regenerating</option>
+                </select>
+                <button id="admin-enemy-apply-live" class="ghost">Apply to Live</button>
+                <button id="admin-enemy-clear-fx" class="ghost">Clear Effects</button>
+              </div>
+              <div class="admin-row admin-row-wide">
+                <label for="admin-enemy-hp">HP x</label>
+                <input id="admin-enemy-hp" type="number" min="0.1" step="0.1" value="1" />
+                <label for="admin-enemy-speed">Speed x</label>
+                <input id="admin-enemy-speed" type="number" min="0.1" step="0.1" value="1" />
+                <label for="admin-enemy-elite">Elite x</label>
+                <input id="admin-enemy-elite" type="number" min="0" step="0.1" value="1" />
+              </div>
+              <div class="admin-row admin-row-wide">
+                <label for="admin-enemy-shield">Shield +</label>
+                <input id="admin-enemy-shield" type="number" min="0" step="1" value="0" />
+                <label for="admin-enemy-armor">Armor +</label>
+                <input id="admin-enemy-armor" type="number" min="0" step="1" value="0" />
+                <label for="admin-enemy-resist">Resist +</label>
+                <input id="admin-enemy-resist" type="number" min="-0.5" max="0.9" step="0.05" value="0" />
+              </div>
+            </div>
+
+            <div class="admin-section">
+              <h3>Quick Actions</h3>
+              <div class="admin-actions">
+                <button id="admin-start-wave" class="ghost">Start Next Wave</button>
+                <button id="admin-clear-enemies" class="ghost">Clear Enemies</button>
+                <button id="admin-clear-projectiles" class="ghost">Clear Projectiles</button>
+                <button id="admin-reset-cooldowns" class="ghost">Reset Cooldowns</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div id="coachmark-layer" class="coachmarks hidden" aria-hidden="true">
           <div class="coachmark-dim"></div>
           <div class="coachmark-ring"></div>
@@ -149,6 +239,12 @@
           </div>
         </div>
 
+        <section id="selected-card" class="card is-collapsed" aria-hidden="true">
+          <h3>Selected</h3>
+          <div id="selected-info">Nothing selected.</div>
+          <div id="selected-actions"></div>
+        </section>
+
         <section class="card">
           <h3>Build</h3>
           <div id="tower-palette" class="palette"></div>
@@ -156,16 +252,15 @@
         </section>
 
         <section class="card">
-          <h3>Selected</h3>
-          <div id="selected-info">Nothing selected.</div>
-          <div id="selected-actions"></div>
-        </section>
-
-        <section class="card">
           <h3>Waves</h3>
           <div class="actions">
             <button id="next-wave-btn">Start Next Wave (Space)</button>
+            <button id="skip-wave-btn">Skip Wave</button>
             <button id="toggle-auto-btn">Auto: Off</button>
+          </div>
+          <div id="skip-wave-hint" class="muted small">
+            <span id="skip-wave-status" class="status-dot"></span>
+            <span id="skip-wave-text"></span>
           </div>
           <div id="wave-preview" class="muted small"></div>
         </section>
@@ -260,6 +355,10 @@
               <span>Reduce motion (less bobbing)</span>
             </label>
             <label class="setting-item">
+              <input id="setting-disable-animations" type="checkbox" />
+              <span>Disable screen animations</span>
+            </label>
+            <label class="setting-item">
               <input id="setting-show-grid" type="checkbox" />
               <span>Show grid overlay</span>
             </label>
@@ -311,6 +410,6 @@
       </aside>
     </div>
 
-    <script type="module" src="./src/main.js"></script>
+    <script type="module" src="./src/main.js?v=20260204g"></script>
   </body>
 </html>

@@ -77,6 +77,7 @@ const DEFAULT_SETTINGS = {
   showAuraRings: true,
   vfxScale: 1,
   reduceMotion: false,
+  disableUiAnimations: false,
   showGrid: true,
   showDecor: true,
   showPathGlow: true,
@@ -134,6 +135,7 @@ export class UI {
       settingShowAuras: document.getElementById("setting-show-auras"),
       settingReduceVfx: document.getElementById("setting-reduce-vfx"),
       settingReduceMotion: document.getElementById("setting-reduce-motion"),
+      settingDisableAnimations: document.getElementById("setting-disable-animations"),
       settingShowGrid: document.getElementById("setting-show-grid"),
       settingShowDecor: document.getElementById("setting-show-decor"),
       settingShowPathGlow: document.getElementById("setting-show-path-glow"),
@@ -155,15 +157,50 @@ export class UI {
       palette: document.getElementById("tower-palette"),
       buildHint: document.getElementById("build-hint"),
 
+      selectedCard: document.getElementById("selected-card"),
       selectedInfo: document.getElementById("selected-info"),
       selectedActions: document.getElementById("selected-actions"),
 
       nextWaveBtn: document.getElementById("next-wave-btn"),
+      skipWaveBtn: document.getElementById("skip-wave-btn"),
       toggleAutoBtn: document.getElementById("toggle-auto-btn"),
+      skipWaveHint: document.getElementById("skip-wave-hint"),
+      skipWaveHintText: document.getElementById("skip-wave-text"),
+      skipWaveStatus: document.getElementById("skip-wave-status"),
       wavePreview: document.getElementById("wave-preview"),
       activeModifiers: document.getElementById("active-modifiers"),
 
       log: document.getElementById("log"),
+
+      adminPanel: document.getElementById("admin-panel"),
+      adminCloseBtn: document.getElementById("admin-close-btn"),
+      adminMoneyAmount: document.getElementById("admin-money-amount"),
+      adminMoneyAdd: document.getElementById("admin-money-add"),
+      adminMoneySet: document.getElementById("admin-money-set"),
+      adminLivesAmount: document.getElementById("admin-lives-amount"),
+      adminLivesAdd: document.getElementById("admin-lives-add"),
+      adminLivesSet: document.getElementById("admin-lives-set"),
+      adminEnemySelect: document.getElementById("admin-enemy-select"),
+      adminEnemyCount: document.getElementById("admin-enemy-count"),
+      adminEnemyPath: document.getElementById("admin-enemy-path"),
+      adminEnemySpawn: document.getElementById("admin-enemy-spawn"),
+      adminEnemyPreset: document.getElementById("admin-enemy-preset"),
+      adminEnemyApplyLive: document.getElementById("admin-enemy-apply-live"),
+      adminEnemyClearFx: document.getElementById("admin-enemy-clear-fx"),
+      adminEnemyHp: document.getElementById("admin-enemy-hp"),
+      adminEnemySpeed: document.getElementById("admin-enemy-speed"),
+      adminEnemyElite: document.getElementById("admin-enemy-elite"),
+      adminEnemyShield: document.getElementById("admin-enemy-shield"),
+      adminEnemyArmor: document.getElementById("admin-enemy-armor"),
+      adminEnemyResist: document.getElementById("admin-enemy-resist"),
+      adminAllySelect: document.getElementById("admin-ally-select"),
+      adminAllyCount: document.getElementById("admin-ally-count"),
+      adminAllyPath: document.getElementById("admin-ally-path"),
+      adminAllySpawn: document.getElementById("admin-ally-spawn"),
+      adminStartWave: document.getElementById("admin-start-wave"),
+      adminClearEnemies: document.getElementById("admin-clear-enemies"),
+      adminClearProjectiles: document.getElementById("admin-clear-projectiles"),
+      adminResetCooldowns: document.getElementById("admin-reset-cooldowns"),
     };
 
     this._logItems = [];
@@ -181,6 +218,7 @@ export class UI {
       upgradeEmpty: null,
       upgradeMaxTitle: null,
       upgradeMaxSub: null,
+      collapseToken: 0,
     };
 
     this._tutorial = {
@@ -192,6 +230,11 @@ export class UI {
     this._coachmarks = {
       open: false,
       step: 0,
+      pausedBefore: null,
+    };
+
+    this._admin = {
+      open: false,
       pausedBefore: null,
     };
 
@@ -236,6 +279,11 @@ export class UI {
     this._syncSettingsUi();
     this._applySettings();
 
+    // Admin panel (secret).
+    this._bindAdmin();
+    this._populateAdminLists();
+    this._refreshAdminPaths();
+
     this._els.startBtn.addEventListener("click", () => {
       const mapId = this._els.mapSelect.value;
       const modeId = this._els.modeSelect.value;
@@ -245,6 +293,7 @@ export class UI {
       this._els.gameOver.classList.remove("victory");
       this._game.newRun(mapId, modeId, modifierIds);
       this.refreshPaletteCosts();
+      this._refreshAdminPaths();
       setTimeout(() => this.maybeShowCoachmarks(), 60);
     });
 
@@ -255,6 +304,7 @@ export class UI {
     });
 
     this._els.nextWaveBtn.addEventListener("click", () => this._game.startNextWave());
+    this._els.skipWaveBtn?.addEventListener("click", () => this._game.skipWave());
     this._els.toggleAutoBtn.addEventListener("click", () => this._game.toggleAuto());
   }
 
@@ -289,6 +339,36 @@ export class UI {
     this._els.tutorialScreen.classList.add("hidden");
   }
 
+  isAdminOpen() {
+    return this._admin.open;
+  }
+
+  toggleAdmin() {
+    if (this._admin.open) this.hideAdmin();
+    else this.showAdmin();
+  }
+
+  showAdmin() {
+    if (!this._els.adminPanel) return;
+    this._admin.open = true;
+    if (this._game?.state?.mode === "playing") {
+      this._admin.pausedBefore = this._game.state.paused;
+      this._game.state.paused = true;
+    }
+    this._refreshAdminPaths();
+    this._els.adminPanel.classList.remove("hidden");
+  }
+
+  hideAdmin() {
+    if (!this._els.adminPanel) return;
+    this._admin.open = false;
+    if (this._admin.pausedBefore != null && this._game?.state?.mode === "playing") {
+      this._game.state.paused = this._admin.pausedBefore;
+    }
+    this._admin.pausedBefore = null;
+    this._els.adminPanel.classList.add("hidden");
+  }
+
   _bindTutorial() {
     const open = () => this.showTutorial();
     this._els.tutorialBtn?.addEventListener("click", open);
@@ -296,6 +376,147 @@ export class UI {
     this._els.tutorialCloseBtn?.addEventListener("click", () => this.hideTutorial());
     this._els.tutorialNextBtn?.addEventListener("click", () => this._shiftTutorialStep(1));
     this._els.tutorialBackBtn?.addEventListener("click", () => this._shiftTutorialStep(-1));
+  }
+
+  _bindAdmin() {
+    const safeNumber = (value, fallback = 0) => {
+      const n = Number.parseFloat(value);
+      return Number.isFinite(n) ? n : fallback;
+    };
+    const ensureRun = () => {
+      if (this._game?.state?.mode !== "playing") {
+        this._game?.log?.("Start a run before using admin spawns.");
+        return false;
+      }
+      return true;
+    };
+    this._els.adminCloseBtn?.addEventListener("click", () => this.hideAdmin());
+
+    this._els.adminMoneyAdd?.addEventListener("click", () => {
+      const amt = safeNumber(this._els.adminMoneyAmount?.value, 0);
+      this._game?.adminAddMoney?.(amt);
+    });
+    this._els.adminMoneySet?.addEventListener("click", () => {
+      const amt = safeNumber(this._els.adminMoneyAmount?.value, 0);
+      this._game?.adminSetMoney?.(amt);
+    });
+    this._els.adminLivesAdd?.addEventListener("click", () => {
+      const amt = safeNumber(this._els.adminLivesAmount?.value, 0);
+      this._game?.adminAddLives?.(amt);
+    });
+    this._els.adminLivesSet?.addEventListener("click", () => {
+      const amt = safeNumber(this._els.adminLivesAmount?.value, 0);
+      this._game?.adminSetLives?.(amt);
+    });
+
+    this._els.adminEnemySpawn?.addEventListener("click", () => {
+      if (!ensureRun()) return;
+      const id = this._els.adminEnemySelect?.value;
+      const count = Math.max(1, Math.round(safeNumber(this._els.adminEnemyCount?.value, 1)));
+      const pathValue = this._els.adminEnemyPath?.value ?? "any";
+      const pathIndex = pathValue === "any" ? null : Number.parseInt(pathValue, 10);
+      const mod = this._readEnemyAdminMod();
+      this._game?.adminSpawnEnemy?.(id, count, pathIndex, mod);
+    });
+
+    this._els.adminAllySpawn?.addEventListener("click", () => {
+      if (!ensureRun()) return;
+      const id = this._els.adminAllySelect?.value;
+      const count = Math.max(1, Math.round(safeNumber(this._els.adminAllyCount?.value, 1)));
+      const pathValue = this._els.adminAllyPath?.value ?? "any";
+      const pathIndex = pathValue === "any" ? null : Number.parseInt(pathValue, 10);
+      this._game?.adminSpawnSummons?.(id, count, pathIndex);
+    });
+
+    this._els.adminEnemyApplyLive?.addEventListener("click", () => {
+      if (!ensureRun()) return;
+      const mod = this._readEnemyAdminMod();
+      this._game?.adminApplyEnemyModifiers?.(mod);
+    });
+    this._els.adminEnemyClearFx?.addEventListener("click", () => {
+      if (!ensureRun()) return;
+      this._game?.adminClearEnemyEffects?.();
+    });
+
+    this._els.adminStartWave?.addEventListener("click", () => {
+      if (!ensureRun()) return;
+      this._game?.startNextWave?.();
+    });
+    this._els.adminClearEnemies?.addEventListener("click", () => {
+      if (!ensureRun()) return;
+      this._game?.adminClearEnemies?.();
+    });
+    this._els.adminClearProjectiles?.addEventListener("click", () => {
+      if (!ensureRun()) return;
+      this._game?.adminClearProjectiles?.();
+    });
+    this._els.adminResetCooldowns?.addEventListener("click", () => {
+      if (!ensureRun()) return;
+      this._game?.adminResetCooldowns?.();
+    });
+  }
+
+  _readEnemyAdminMod() {
+    const safeNumber = (value, fallback = 0) => {
+      const n = Number.parseFloat(value);
+      return Number.isFinite(n) ? n : fallback;
+    };
+    return {
+      preset: this._els.adminEnemyPreset?.value ?? "none",
+      hpMul: Math.max(0.1, safeNumber(this._els.adminEnemyHp?.value, 1)),
+      speedMul: Math.max(0.1, safeNumber(this._els.adminEnemySpeed?.value, 1)),
+      eliteMult: Math.max(0, safeNumber(this._els.adminEnemyElite?.value, 1)),
+      shieldAdd: Math.max(0, safeNumber(this._els.adminEnemyShield?.value, 0)),
+      armorAdd: Math.max(0, safeNumber(this._els.adminEnemyArmor?.value, 0)),
+      resistAdd: Math.max(-0.9, Math.min(0.9, safeNumber(this._els.adminEnemyResist?.value, 0))),
+    };
+  }
+
+  _populateAdminLists() {
+    const enemySelect = this._els.adminEnemySelect;
+    const allySelect = this._els.adminAllySelect;
+    if (enemySelect) {
+      enemySelect.innerHTML = "";
+      const enemies = Object.values(this._data.enemyDefs || {}).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+      for (const def of enemies) {
+        const opt = document.createElement("option");
+        opt.value = def.id;
+        opt.textContent = def.name || def.id;
+        enemySelect.appendChild(opt);
+      }
+    }
+    if (allySelect) {
+      allySelect.innerHTML = "";
+      const summons = Object.values(this._data.towerDefs || {})
+        .filter((def) => def?.stats?.ability?.type === "summon" && def?.stats?.ability?.summon)
+        .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+      for (const def of summons) {
+        const opt = document.createElement("option");
+        opt.value = def.id;
+        opt.textContent = `${def.name} Unit`;
+        allySelect.appendChild(opt);
+      }
+    }
+  }
+
+  _refreshAdminPaths() {
+    const pathCount = Math.max(1, this._game?.pathInfos?.length || 1);
+    const fill = (select) => {
+      if (!select) return;
+      select.innerHTML = "";
+      const anyOpt = document.createElement("option");
+      anyOpt.value = "any";
+      anyOpt.textContent = "Any path";
+      select.appendChild(anyOpt);
+      for (let i = 0; i < pathCount; i++) {
+        const opt = document.createElement("option");
+        opt.value = String(i);
+        opt.textContent = `Path ${i + 1}`;
+        select.appendChild(opt);
+      }
+    };
+    fill(this._els.adminEnemyPath);
+    fill(this._els.adminAllyPath);
   }
 
   _shiftTutorialStep(delta) {
@@ -327,6 +548,7 @@ export class UI {
   maybeShowCoachmarks() {
     if (this._coachmarks.open) return;
     if (!this._els.coachmarkLayer) return;
+    if (navigator.webdriver) return;
     if (this._game?.state?.mode !== "playing") return;
     if (this._game?.state?.waveNumber !== 0) return;
     const seen = window.localStorage?.getItem("td_coachmarks_seen_v1");
@@ -390,6 +612,10 @@ export class UI {
       this._settings.reduceMotion = Boolean(ev.target.checked);
       this._applySettings();
     });
+    this._els.settingDisableAnimations?.addEventListener("change", (ev) => {
+      this._settings.disableUiAnimations = Boolean(ev.target.checked);
+      this._applySettings();
+    });
     this._els.settingShowGrid?.addEventListener("change", (ev) => {
       this._settings.showGrid = Boolean(ev.target.checked);
       this._applySettings();
@@ -446,6 +672,9 @@ export class UI {
     if (this._els.settingShowAuras) this._els.settingShowAuras.checked = this._settings.showAuraRings !== false;
     if (this._els.settingReduceVfx) this._els.settingReduceVfx.checked = (this._settings.vfxScale ?? 1) < 1;
     if (this._els.settingReduceMotion) this._els.settingReduceMotion.checked = Boolean(this._settings.reduceMotion);
+    if (this._els.settingDisableAnimations) {
+      this._els.settingDisableAnimations.checked = Boolean(this._settings.disableUiAnimations);
+    }
     if (this._els.settingShowGrid) this._els.settingShowGrid.checked = this._settings.showGrid !== false;
     if (this._els.settingShowDecor) this._els.settingShowDecor.checked = this._settings.showDecor !== false;
     if (this._els.settingShowPathGlow) this._els.settingShowPathGlow.checked = this._settings.showPathGlow !== false;
@@ -463,6 +692,9 @@ export class UI {
     if (!this._game?.state) return;
     this._game.state.settings = { ...DEFAULT_SETTINGS, ...this._settings };
     if (this._game.world) this._game.world.settings = this._game.state.settings;
+    if (document?.body) {
+      document.body.classList.toggle("disable-animations", Boolean(this._settings.disableUiAnimations));
+    }
     this._saveSettings();
     if (this._game.state.mode === "playing") {
       if (this._game.state.autoNextWave !== this._settings.autoStartWaves) {
@@ -595,6 +827,34 @@ export class UI {
     this._els.threat.textContent = s.threat == null ? "-" : String(s.threat);
     this._els.toggleAutoBtn.textContent = `Auto: ${s.auto ? "On" : "Off"}`;
     this._els.nextWaveBtn.disabled = Boolean(s.inWave);
+    if (this._els.skipWaveBtn) {
+      const disabled = !s.inWave || Boolean(s.bossWave) || Boolean(s.spawnPending);
+      this._els.skipWaveBtn.disabled = disabled;
+      if (s.bossWave) this._els.skipWaveBtn.title = "Boss waves cannot be skipped.";
+      else if (!s.inWave) this._els.skipWaveBtn.title = "Start a wave to enable.";
+      else if (s.spawnPending) this._els.skipWaveBtn.title = "Wait for all spawns to finish.";
+      else this._els.skipWaveBtn.title = "Skip the current wave and start the next (enemies remain).";
+    }
+    if (this._els.skipWaveHint || this._els.skipWaveHintText || this._els.skipWaveStatus) {
+      const hintText = this._els.skipWaveHintText || this._els.skipWaveHint;
+      const status = this._els.skipWaveStatus;
+      if (status) status.className = "status-dot";
+
+      if (s.bossWave) {
+        if (status) status.classList.add("locked");
+        if (hintText) hintText.textContent = "Boss wave: skipping is disabled.";
+      } else if (!s.inWave) {
+        if (hintText) hintText.textContent = "Skip becomes available once a wave starts.";
+      } else if (s.spawnPending) {
+        if (status) status.classList.add("pending");
+        const remaining = Math.max(0, Number.isFinite(s.spawnRemaining) ? s.spawnRemaining : 0);
+        const display = remaining >= 10 ? Math.ceil(remaining) : Math.max(0.1, Math.ceil(remaining * 10) / 10);
+        if (hintText) hintText.textContent = `Spawns finishing in ${display}s.`;
+      } else {
+        if (status) status.classList.add("ready");
+        if (hintText) hintText.textContent = "Spawns complete. Skip starts the next wave; enemies remain.";
+      }
+    }
 
     for (const def of Object.values(this._data.towerDefs)) {
       const btn = this._paletteButtons.get(def.id);
@@ -618,46 +878,231 @@ export class UI {
     }
   }
 
+  _setSelectedCardVisible(visible) {
+    const card = this._els.selectedCard;
+    if (!card) return;
+    const reduceUiAnimations = Boolean(this._settings?.disableUiAnimations);
+
+    if (visible) {
+      card.classList.remove("hidden");
+      card.setAttribute("aria-hidden", "false");
+      if (!card.classList.contains("is-collapsed")) return;
+      if (reduceUiAnimations) {
+        card.classList.remove("is-collapsed");
+        return;
+      }
+      // Remove immediately to avoid stuck collapsed state in non-RAF loops.
+      card.classList.remove("is-collapsed");
+      return;
+    }
+
+    if (card.classList.contains("is-collapsed")) {
+      card.setAttribute("aria-hidden", "true");
+      card.classList.add("hidden");
+      return;
+    }
+
+    this._selectedUi.collapseToken += 1;
+    const token = this._selectedUi.collapseToken;
+
+    card.setAttribute("aria-hidden", "true");
+    if (reduceUiAnimations) {
+      card.classList.add("is-collapsed");
+      card.classList.add("hidden");
+      return;
+    }
+    card.classList.add("is-collapsed");
+    const handleTransitionEnd = (ev) => {
+      if (token !== this._selectedUi.collapseToken) {
+        card.removeEventListener("transitionend", handleTransitionEnd);
+        return;
+      }
+      if (ev.propertyName !== "max-height") return;
+      card.removeEventListener("transitionend", handleTransitionEnd);
+      card.classList.add("hidden");
+    };
+    card.addEventListener("transitionend", handleTransitionEnd);
+  }
+
+  _ensureSelectedCardDom() {
+    let card = this._els.selectedCard || document.getElementById("selected-card");
+    if (!card) {
+      const sidePanel = document.getElementById("side-panel");
+      if (sidePanel) {
+        card = document.createElement("section");
+        card.id = "selected-card";
+        card.className = "card is-collapsed";
+        card.setAttribute("aria-hidden", "true");
+        const stats = sidePanel.querySelector(".stats");
+        if (stats && stats.nextSibling) {
+          sidePanel.insertBefore(card, stats.nextSibling);
+        } else if (stats) {
+          sidePanel.appendChild(card);
+        } else {
+          sidePanel.prepend(card);
+        }
+      }
+    }
+    if (!card) return null;
+
+    let header = card.querySelector("h3");
+    if (!header) {
+      header = document.createElement("h3");
+      header.textContent = "Selected";
+      card.prepend(header);
+    }
+
+    let info = card.querySelector("#selected-info");
+    if (!info) {
+      info = document.createElement("div");
+      info.id = "selected-info";
+      card.appendChild(info);
+    }
+
+    let actions = card.querySelector("#selected-actions");
+    if (!actions) {
+      actions = document.createElement("div");
+      actions.id = "selected-actions";
+      card.appendChild(actions);
+    }
+
+    info.classList.remove("hidden");
+    actions.classList.remove("hidden");
+
+    this._els.selectedCard = card;
+    this._els.selectedInfo = info;
+    this._els.selectedActions = actions;
+
+    return { card, info, actions };
+  }
+
   setSelected(sel) {
-    const info = this._els.selectedInfo;
-    const actions = this._els.selectedActions;
+    const dom = this._ensureSelectedCardDom();
+    if (!dom) return;
+
+    const { card } = dom;
 
     if (!sel) {
-      this._selectedUi.towerId = null;
-      this._selectedUi.infoEls = null;
-      this._selectedUi.targetingSelect = null;
-      this._selectedUi.sellBtn = null;
-      this._selectedUi.upgradesById.clear();
-      this._selectedUi.upgradeNameById.clear();
-      this._selectedUi.tiers.clear();
-      this._selectedUi.upgradeEmpty = null;
-      this._selectedUi.upgradeMaxTitle = null;
-      this._selectedUi.upgradeMaxSub = null;
-      info.className = "muted small";
-      info.textContent = "Nothing selected.";
-      actions.innerHTML = "";
+      const info = this._els.selectedInfo;
+      const actions = this._els.selectedActions;
+      if (info) {
+        info.className = "muted small";
+        info.textContent = "Nothing selected.";
+      }
+      if (actions) actions.innerHTML = "";
+      if (card) this._setSelectedCardVisible(false);
+      this._selectedUi.viewKey = null;
       return;
     }
+
     const { tower, def, stats } = sel;
     if (!def || !stats) {
-      info.className = "muted small";
-      info.textContent = "Selection missing data.";
-      actions.innerHTML = "";
+      const info = this._els.selectedInfo;
+      const actions = this._els.selectedActions;
+      if (info) {
+        info.className = "muted small";
+        info.textContent = "Selection missing data.";
+      }
+      if (actions) actions.innerHTML = "";
+      if (card) this._setSelectedCardVisible(false);
+      this._selectedUi.viewKey = null;
       return;
     }
 
-    // (Re)build DOM only when selection changes. Rebuilding every frame breaks click
-    // interactions because the button can be replaced between mousedown and mouseup.
-    if (this._selectedUi.towerId !== tower.id) {
-      this._selectedUi.towerId = tower.id;
-      this._selectedUi.upgradesById.clear();
-      this._selectedUi.upgradeNameById.clear();
+    if (card) this._setSelectedCardVisible(true);
 
+    const upgrades = def.upgrades || [];
+    const upgradeNameById = new Map(upgrades.map((u) => [u.id, u.name]));
+    const upgradeById = new Map(upgrades.map((u) => [u.id, u]));
+
+    const childrenByReq = new Map();
+    for (const up of upgrades) {
+      for (const req of up.requires || []) {
+        if (!upgradeById.has(req)) continue;
+        if (!childrenByReq.has(req)) childrenByReq.set(req, []);
+        childrenByReq.get(req).push(up);
+      }
+    }
+
+    const tierOf = (u) => (u?.tier ?? 1);
+    const roots = upgrades.filter((u) => tierOf(u) === 1);
+
+    const rootFor = (upgradeId) => {
+      let current = upgradeById.get(upgradeId);
+      const seen = new Set();
+      while (current) {
+        const req = (current.requires || []).find((r) => upgradeById.has(r));
+        if (!req) break;
+        if (seen.has(req)) break;
+        seen.add(req);
+        current = upgradeById.get(req);
+      }
+      return current;
+    };
+
+    const ownedRoots = new Set();
+    for (const id of tower.appliedUpgrades) {
+      const root = rootFor(id);
+      if (root) ownedRoots.add(root.id);
+    }
+
+    const activeRoots = ownedRoots.size ? [...ownedRoots] : roots.map((r) => r.id);
+    const activeRootId = ownedRoots.size ? activeRoots[0] : null;
+    const chosenRootNames = ownedRoots.size
+      ? [...ownedRoots].map((id) => upgradeById.get(id)?.name || id).filter(Boolean)
+      : [];
+
+    const rootMatches = (up) => {
+      if (!activeRootId) return true;
+      const root = rootFor(up.id);
+      return root?.id === activeRootId;
+    };
+
+    const pathUpgrades = upgrades.filter((u) => rootMatches(u));
+    const maxTier = pathUpgrades.length ? Math.max(...pathUpgrades.map((u) => tierOf(u))) : 1;
+    const ownedInPath = pathUpgrades.filter((u) => tower.appliedUpgrades.has(u.id));
+    const highestOwnedTier = ownedInPath.length ? Math.max(...ownedInPath.map((u) => tierOf(u))) : 0;
+    const maxedPath = pathUpgrades.length
+      ? highestOwnedTier >= maxTier && pathUpgrades.every((u) => tower.appliedUpgrades.has(u.id))
+      : false;
+    const activeTier = activeRootId ? Math.min(maxTier, Math.max(1, highestOwnedTier + 1)) : 1;
+    const upgradesToShow = pathUpgrades.filter((u) => tierOf(u) === activeTier);
+
+    const appliedKey = [...tower.appliedUpgrades].sort().join("|");
+    const viewKey = `${tower.id}|${activeRootId || "any"}|${activeTier}|${maxedPath ? "max" : "open"}|${appliedKey}`;
+    const needsRebuild =
+      this._selectedUi.viewKey !== viewKey ||
+      !this._selectedUi.infoEls ||
+      !this._selectedUi.targetingSelect ||
+      !this._selectedUi.upgradesById;
+
+    if (needsRebuild) {
+      // Hard reset only when the selection or tier/path view changes.
+      card.innerHTML = "";
+      const header = document.createElement("h3");
+      header.textContent = "Selected";
+      card.appendChild(header);
+
+      const info = document.createElement("div");
+      info.id = "selected-info";
+      info.style.display = "block";
+      card.appendChild(info);
+
+      const actions = document.createElement("div");
+      actions.id = "selected-actions";
+      actions.style.display = "grid";
+      card.appendChild(actions);
+
+      this._els.selectedInfo = info;
+      this._els.selectedActions = actions;
+      this._els.selectedCard = card;
+
+      this._selectedUi.upgradesById = new Map();
+
+      // Info block
       info.className = "small";
       info.innerHTML = "";
-      actions.innerHTML = "";
 
-      // Info panel
       const title = document.createElement("div");
       title.className = "selected-title";
       title.textContent = `${def.name} — ${def.role}`;
@@ -673,7 +1118,60 @@ export class UI {
       info.appendChild(sub);
       info.appendChild(statsEl);
 
+      const lines = [];
+      if (stats.aura) {
+        lines.push(`Aura radius: ${Math.round(stats.aura.radius ?? 0)}`);
+        const buffs = Object.entries(stats.aura.buffs || {})
+          .map(([k, v]) => `${k}×${fmt(v, 2)}`)
+          .join(", ");
+        if (buffs) lines.push(`Buffs: ${buffs}`);
+      } else {
+        lines.push(`Range: ${Math.round(stats.range)} | Targeting: ${labelForTargeting(stats.targeting)}`);
+        lines.push(`Damage: ${Math.round(stats.damage)} (${stats.damageType}) | Fire: ${fmt(stats.fireRate, 2)}/s`);
+        const dpsBreakdown = calcTotalDps(stats);
+        if (dpsBreakdown.total > 0) {
+          const baseText = fmt(dpsBreakdown.base, 1);
+          const abilityText = fmt(dpsBreakdown.ability, 1);
+          const totalText = fmt(dpsBreakdown.total, 1);
+          const suffix = dpsBreakdown.ability > 0 ? ` (Base ${baseText} + Ability ${abilityText})` : "";
+          const tooltip = dpsBreakdown.ability > 0
+            ? "DPS = base attacks + average ability DPS (damage per use / cooldown). Summons use uptime."
+            : "DPS = base attacks (expected crit damage included).";
+          lines.push({ text: `DPS: ${totalText}${suffix}`, title: tooltip });
+        }
+        lines.push(`Splash: ${Math.round(stats.splashRadius) || "-"} | Projectile: ${Math.round(stats.projectileSpeed)}`);
+        if (stats.onHitEffects?.length) lines.push(`On-hit: ${stats.onHitEffects.map((e) => e.type).join(", ")}`);
+      }
+      if (stats.ability) {
+        const count = stats.ability.count ? ` x${stats.ability.count}` : "";
+        lines.push(`Ability: ${stats.ability.name || "Ability"} (CD ${fmt(stats.ability.cooldown ?? 0, 1)}s${count})`);
+        const abilityDesc = describeTowerAbility(stats.ability, stats);
+        if (abilityDesc) lines.push(`Ability Effect: ${abilityDesc}`);
+        if (stats.ability.summon) {
+          const s = stats.ability.summon;
+          lines.push(`Summon: ${s.name || "Unit"} | HP ${Math.round(s.hp ?? 0)} | Dmg ${Math.round(s.damage ?? 0)} (${s.damageType || stats.damageType})`);
+          lines.push(`Summon FR ${fmt(s.fireRate ?? 0, 2)}/s | Range ${Math.round(s.range ?? 0)} | Life ${fmt(s.lifetime ?? 0, 1)}s`);
+          lines.push(`Summon Speed ${Math.round(s.speed ?? 0)} | Projectile ${Math.round(s.projectileSpeed ?? 0)}`);
+          if (s.chain) {
+            lines.push(`Summon Chain: jumps ${s.chain.maxJumps ?? 0} | range ${Math.round(s.chain.range ?? 0)}`);
+          }
+          if (s.onHitEffects?.length) lines.push(`Summon On-hit: ${s.onHitEffects.map((e) => e.type).join(", ")}`);
+        }
+      }
+      statsEl.innerHTML = "";
+      for (const line of lines) {
+        const row = document.createElement("div");
+        if (typeof line === "string") {
+          row.textContent = line;
+        } else if (line && typeof line === "object") {
+          row.textContent = line.text || "";
+          if (line.title) row.title = line.title;
+        }
+        statsEl.appendChild(row);
+      }
+
       // Controls
+      actions.innerHTML = "";
       const controls = document.createElement("div");
       controls.className = "selected-controls";
 
@@ -700,6 +1198,16 @@ export class UI {
         this._game.setTowerTargetingOverride(tower.id, v ? v : null);
       });
 
+      const override = tower.targetingOverride ?? null;
+      targetingSelect.value = override ? normalizeTargeting(override) : "";
+      if (stats.aura) {
+        optDefault.textContent = "N/A (Support)";
+        targetingSelect.disabled = true;
+      } else {
+        const baseTargeting = tower.computeStats(def, { ignoreOverride: true, modifiers: this._game.modifierState }).targeting;
+        optDefault.textContent = `Default (${labelForTargeting(baseTargeting)})`;
+      }
+
       targetingRow.appendChild(targetingLabel);
       targetingRow.appendChild(targetingSelect);
       controls.appendChild(targetingRow);
@@ -712,313 +1220,214 @@ export class UI {
 
       actions.appendChild(controls);
 
+      this._selectedUi.targetingSelect = targetingSelect;
+      this._selectedUi.sellBtn = sellBtn;
+      this._selectedUi.infoEls = { title, sub, statsEl };
+
+      // Upgrades (current tier only)
       const upgradeWrap = document.createElement("div");
       upgradeWrap.className = "upgrade-wrap";
       actions.appendChild(upgradeWrap);
 
-      const upgradeEmpty = document.createElement("div");
-      upgradeEmpty.className = "upgrade-empty upgrade-maxed";
-      const upgradeMaxTitle = document.createElement("div");
-      upgradeMaxTitle.className = "upgrade-maxed-title";
-      upgradeMaxTitle.textContent = "Maxed";
-      const upgradeMaxSub = document.createElement("div");
-      upgradeMaxSub.className = "upgrade-maxed-sub";
-      upgradeMaxSub.textContent = "Path complete.";
-      upgradeEmpty.appendChild(upgradeMaxTitle);
-      upgradeEmpty.appendChild(upgradeMaxSub);
-      upgradeEmpty.style.display = "none";
-      upgradeWrap.appendChild(upgradeEmpty);
-
-      // Precompute upgrade name map for better lock reasons.
-      for (const up of def.upgrades || []) this._selectedUi.upgradeNameById.set(up.id, up.name);
-
-      // Group upgrades by tier.
-      const byTier = new Map();
-      for (const up of def.upgrades || []) {
-        const tier = up.tier ?? 1;
-        if (!byTier.has(tier)) byTier.set(tier, []);
-        byTier.get(tier).push(up);
-      }
-
-      const tiers = [...byTier.keys()].sort((a, b) => a - b);
-      for (const tier of tiers) {
-        const wrap = document.createElement("div");
-        wrap.className = "upgrade-tier-wrap";
-        upgradeWrap.appendChild(wrap);
-
-        const head = document.createElement("div");
-        head.className = "upgrade-tier";
-        head.textContent = `Tier ${tier}`;
-        wrap.appendChild(head);
-
-        const grid = document.createElement("div");
-        grid.className = "upgrade-grid";
-        wrap.appendChild(grid);
-
-        for (const up of byTier.get(tier)) {
-          const card = document.createElement("div");
-          card.className = "upgrade-card";
-
-          const top = document.createElement("div");
-          top.className = "upgrade-top";
-
-          const name = document.createElement("div");
-          name.className = "upgrade-name";
-          if (up.tier === 1) {
-            const accent = getUpgradeAccent(def, up);
-            const dot = document.createElement("span");
-            dot.className = "upgrade-path-dot";
-            if (accent) dot.style.background = accent;
-            name.appendChild(dot);
-          }
+      if (!upgrades.length) {
+        const empty = document.createElement("div");
+        empty.className = "muted small";
+        empty.textContent = "No upgrades available.";
+        upgradeWrap.appendChild(empty);
+      } else {
+        if (chosenRootNames.length) {
+          const chosen = document.createElement("div");
+          chosen.className = "upgrade-path-chosen";
           const label = document.createElement("span");
-          label.textContent = up.name;
-          name.appendChild(label);
+          label.className = "upgrade-path-label";
+          label.textContent = "Path chosen";
+          const name = document.createElement("span");
+          name.className = "upgrade-path-name";
+          name.textContent = chosenRootNames.join(" / ");
+          chosen.appendChild(label);
+          chosen.appendChild(name);
+          upgradeWrap.appendChild(chosen);
+        }
 
-          const cost = document.createElement("div");
-          cost.className = "upgrade-cost muted";
-          cost.textContent = `${up.cost ?? 0}g`;
+        if (!maxedPath) {
+          const wrap = document.createElement("div");
+          wrap.className = "upgrade-tier-wrap";
+          upgradeWrap.appendChild(wrap);
 
-          const badge = document.createElement("span");
-          badge.className = "badge";
-          badge.textContent = "Locked";
+          const head = document.createElement("div");
+          head.className = "upgrade-tier";
+          head.textContent = `Tier ${activeTier}`;
+          wrap.appendChild(head);
 
-          top.appendChild(name);
-          top.appendChild(cost);
-          top.appendChild(badge);
+          const grid = document.createElement("div");
+          grid.className = "upgrade-grid";
+          wrap.appendChild(grid);
 
-          const desc = document.createElement("div");
-          desc.className = "upgrade-desc muted";
-          desc.textContent = up.description || "";
+          for (const up of upgradesToShow) {
+            const cardEl = document.createElement("div");
+            cardEl.className = "upgrade-card";
 
-          const tagRow = document.createElement("div");
-          tagRow.className = "upgrade-tags";
-          const tags = getUpgradeTags(up, def);
-          if (tags.length) {
-            for (const tag of tags) {
-              const span = document.createElement("span");
-              span.className = `upgrade-tag ${tag.type}`;
-              span.textContent = tag.label;
-              tagRow.appendChild(span);
+            const top = document.createElement("div");
+            top.className = "upgrade-top";
+
+            const name = document.createElement("div");
+            name.className = "upgrade-name";
+            if ((up.tier ?? 1) === 1) {
+              const accent = getUpgradeAccent(def, up);
+              const dot = document.createElement("span");
+              dot.className = "upgrade-path-dot";
+              if (accent) dot.style.background = accent;
+              name.appendChild(dot);
             }
+            const label = document.createElement("span");
+            label.textContent = up.name;
+            name.appendChild(label);
+
+            const cost = document.createElement("div");
+            cost.className = "upgrade-cost muted";
+            const costValue = this._game.getUpgradeCost(up);
+            cost.textContent = `${costValue}g`;
+
+            const badge = document.createElement("span");
+            badge.className = "badge";
+
+            top.appendChild(name);
+            top.appendChild(cost);
+            top.appendChild(badge);
+
+            const desc = document.createElement("div");
+            desc.className = "upgrade-desc muted";
+            const nextStats = getStatsWithUpgrade(tower, def, up, this._game.modifierState);
+            if (up.description) {
+              const row = document.createElement("div");
+              row.className = "upgrade-desc-line";
+              row.textContent = up.description;
+              desc.appendChild(row);
+            }
+            const abilityLine = getUpgradeAbilityDescription(stats, nextStats);
+            if (abilityLine) {
+              const row = document.createElement("div");
+              row.className = "upgrade-ability";
+              row.textContent = abilityLine;
+              desc.appendChild(row);
+            }
+            const changeLines = getUpgradeStatChanges(stats, nextStats);
+            if (changeLines.length) {
+              const changes = document.createElement("div");
+              changes.className = "upgrade-changes";
+              for (const line of changeLines) {
+                const row = document.createElement("div");
+                row.className = "upgrade-change";
+                row.textContent = line;
+                changes.appendChild(row);
+              }
+              desc.appendChild(changes);
+            }
+
+            const tagRow = document.createElement("div");
+            tagRow.className = "upgrade-tags";
+            const tags = getUpgradeTags(up, def);
+            if (tags.length) {
+              for (const tag of tags) {
+                const span = document.createElement("span");
+                span.className = `upgrade-tag ${tag.type}`;
+                span.textContent = tag.label;
+                tagRow.appendChild(span);
+              }
+            }
+
+            const reason = document.createElement("div");
+            reason.className = "upgrade-reason muted";
+
+            const btn = document.createElement("button");
+            btn.className = "ok";
+            btn.addEventListener("click", () => this._game.buyUpgrade(up.id));
+
+            cardEl.appendChild(top);
+            cardEl.appendChild(desc);
+            if (tags.length) cardEl.appendChild(tagRow);
+            cardEl.appendChild(reason);
+            cardEl.appendChild(btn);
+            grid.appendChild(cardEl);
+
+            this._selectedUi.upgradesById.set(up.id, {
+              card: cardEl,
+              btn,
+              badge,
+              reason,
+              costValue,
+              upgrade: up,
+              nameEl: name,
+            });
           }
-
-          const reason = document.createElement("div");
-          reason.className = "upgrade-reason muted";
-
-          const btn = document.createElement("button");
-          btn.className = "ok";
-          btn.textContent = "Buy";
-          btn.addEventListener("click", () => this._game.buyUpgrade(up.id));
-
-          card.appendChild(top);
-          card.appendChild(desc);
-          if (tags.length) card.appendChild(tagRow);
-          card.appendChild(reason);
-          card.appendChild(btn);
-          grid.appendChild(card);
-
-          this._selectedUi.upgradesById.set(up.id, { card, btn, badge, reason, cost });
         }
 
-        this._selectedUi.tiers.set(tier, { wrap });
-      }
-
-      this._selectedUi.infoEls = { statsEl };
-      this._selectedUi.targetingSelect = targetingSelect;
-      this._selectedUi.sellBtn = sellBtn;
-      this._selectedUi.upgradeEmpty = upgradeEmpty;
-      this._selectedUi.upgradeMaxTitle = upgradeMaxTitle;
-      this._selectedUi.upgradeMaxSub = upgradeMaxSub;
-    }
-
-    // Update dynamic fields without rebuilding the DOM.
-    const statsEl = this._selectedUi.infoEls?.statsEl;
-    if (statsEl) {
-      const lines = [];
-      if (stats.aura) {
-        lines.push(`Aura radius: ${Math.round(stats.aura.radius ?? 0)}`);
-        const buffs = Object.entries(stats.aura.buffs || {})
-          .map(([k, v]) => `${k}×${fmt(v, 2)}`)
-          .join(", ");
-        if (buffs) lines.push(`Buffs: ${buffs}`);
-      } else {
-        lines.push(`Range: ${Math.round(stats.range)} | Targeting: ${labelForTargeting(stats.targeting)}`);
-        lines.push(`Damage: ${Math.round(stats.damage)} (${stats.damageType}) | Fire: ${fmt(stats.fireRate, 2)}/s`);
-        lines.push(`Splash: ${Math.round(stats.splashRadius) || "-"} | Projectile: ${Math.round(stats.projectileSpeed)}`);
-        if (stats.onHitEffects?.length) lines.push(`On-hit: ${stats.onHitEffects.map((e) => e.type).join(", ")}`);
-      }
-
-      if (stats.ability) {
-        const count = stats.ability.count ? ` x${stats.ability.count}` : "";
-        lines.push(`Ability: ${stats.ability.name || "Ability"} (CD ${fmt(stats.ability.cooldown ?? 0, 1)}s${count})`);
-        if (stats.ability.summon) {
-          const s = stats.ability.summon;
-          lines.push(
-            `Summon: ${s.name || "Unit"} | HP ${Math.round(s.hp ?? 0)} | Dmg ${Math.round(s.damage ?? 0)} (${s.damageType || stats.damageType})`
-          );
-          lines.push(
-            `Summon FR ${fmt(s.fireRate ?? 0, 2)}/s | Range ${Math.round(s.range ?? 0)} | Life ${fmt(s.lifetime ?? 0, 1)}s`
-          );
-          lines.push(`Summon Speed ${Math.round(s.speed ?? 0)} | Projectile ${Math.round(s.projectileSpeed ?? 0)}`);
-          if (s.chain) {
-            lines.push(`Summon Chain: jumps ${s.chain.maxJumps ?? 0} | range ${Math.round(s.chain.range ?? 0)}`);
+        if (maxedPath) {
+          const root = activeRootId ? upgradeById.get(activeRootId) : null;
+          const maxed = document.createElement("div");
+          maxed.className = "upgrade-maxed";
+          if (root?.name) {
+            const titleEl = document.createElement("div");
+            titleEl.className = "upgrade-maxed-title";
+            titleEl.textContent = `Maxed Path: ${root.name}`;
+            maxed.appendChild(titleEl);
+          } else {
+            const titleEl = document.createElement("div");
+            titleEl.className = "upgrade-maxed-title";
+            titleEl.textContent = "Path maxed";
+            maxed.appendChild(titleEl);
           }
-          if (s.onHitEffects?.length) lines.push(`Summon On-hit: ${s.onHitEffects.map((e) => e.type).join(", ")}`);
+          const ownedNames = ownedInPath
+            .slice()
+            .sort((a, b) => tierOf(a) - tierOf(b))
+            .map((u) => u.name)
+            .join(" → ");
+          const sub = document.createElement("div");
+          sub.className = "upgrade-maxed-sub";
+          sub.textContent = ownedNames || "All upgrades acquired.";
+          maxed.appendChild(sub);
+          upgradeWrap.appendChild(maxed);
         }
       }
 
-      statsEl.innerHTML = lines.map((l) => `<div>${l}</div>`).join("");
+      this._selectedUi.viewKey = viewKey;
     }
 
-    // Targeting dropdown: show override value (empty = default).
-    if (this._selectedUi.targetingSelect) {
-      const override = tower.targetingOverride ?? null;
-      this._selectedUi.targetingSelect.value = override ? normalizeTargeting(override) : "";
-      const defOpt = this._selectedUi.targetingSelect.options?.[0];
-      if (defOpt) {
-        if (stats.aura) {
-          defOpt.textContent = "N/A (Support)";
-        } else {
-          const baseTargeting = tower.computeStats(def, { ignoreOverride: true, modifiers: this._game.modifierState }).targeting;
-          defOpt.textContent = `Default (${labelForTargeting(baseTargeting)})`;
-        }
-      }
-      this._selectedUi.targetingSelect.disabled = Boolean(stats.aura);
-    }
-
-    // Upgrades: set availability, reasons, and status badges.
+    // Info block
+    // Update upgrade button states (no DOM rebuild)
     const money = this._game.state.money;
-    const idToUp = new Map((def.upgrades || []).map((u) => [u.id, u]));
-    const ownedIds = tower.appliedUpgrades;
-    const tier1Upgrades = (def.upgrades || []).filter((u) => (u.tier ?? 1) === 1);
-    const chosenTier1 = tier1Upgrades.find((u) => ownedIds.has(u.id)) || null;
-    const rootCache = new Map();
+    if (this._selectedUi.upgradesById?.size) {
+      for (const [id, item] of this._selectedUi.upgradesById.entries()) {
+        const up = item.upgrade;
+        const owned = tower.appliedUpgrades.has(id);
+        const canAfford = money >= item.costValue;
+        const missingReq = (up.requires || []).filter((r) => !tower.appliedUpgrades.has(r));
+        const conflicts = (up.excludes || []).filter((x) => tower.appliedUpgrades.has(x));
+        const canBuy = !owned && canAfford && missingReq.length === 0 && conflicts.length === 0;
 
-    const getUpgradeRoots = (upId, stack = new Set()) => {
-      if (rootCache.has(upId)) return rootCache.get(upId);
-      const up = idToUp.get(upId);
-      if (!up) return new Set();
-      const tier = up.tier ?? 1;
-      if (tier === 1) {
-        const roots = new Set([upId]);
-        rootCache.set(upId, roots);
-        return roots;
-      }
-      const roots = new Set();
-      const reqs = up.requires || [];
-      for (const req of reqs) {
-        if (stack.has(req)) continue;
-        stack.add(req);
-        for (const r of getUpgradeRoots(req, stack)) roots.add(r);
-        stack.delete(req);
-      }
-      rootCache.set(upId, roots);
-      return roots;
-    };
+        item.card.classList.toggle("owned", owned);
+        item.badge.classList.toggle("owned", owned);
+        item.badge.classList.toggle("locked", !owned && !canBuy);
+        item.badge.textContent = owned ? "Owned" : canBuy ? "Ready" : "Locked";
 
-    const getPathLockReason = (up) => {
-      if (chosenTier1) {
-        const roots = getUpgradeRoots(up.id);
-        if (roots.size && !roots.has(chosenTier1.id)) {
-          return `Path locked by: ${chosenTier1.name}`;
+        item.btn.disabled = !canBuy;
+        item.btn.textContent = owned ? "Owned" : `Buy (-${item.costValue}g)`;
+
+        if (owned) {
+          item.reason.textContent = "Owned";
+        } else if (!canAfford) {
+          item.reason.textContent = `Need ${item.costValue - money}g`;
+        } else if (missingReq.length) {
+          item.reason.textContent = `Requires: ${missingReq.map((rid) => upgradeNameById.get(rid) || rid).join(", ")}`;
+        } else if (conflicts.length) {
+          item.reason.textContent = `Blocked by: ${conflicts.map((rid) => upgradeNameById.get(rid) || rid).join(", ")}`;
+        } else {
+          item.reason.textContent = "Available";
         }
       }
-      const excludesOwned = (up.excludes || []).filter((x) => ownedIds.has(x));
-      const ownedExcludes = [...ownedIds].filter((id) => (idToUp.get(id)?.excludes || []).includes(up.id));
-      const blockers = [...excludesOwned, ...ownedExcludes];
-      if (blockers.length) {
-        const names = blockers.map((id) => this._selectedUi.upgradeNameById.get(id) || id);
-        return `Path locked by: ${names.join(", ")}`;
-      }
-
-      const reqs = up.requires || [];
-      for (const req of reqs) {
-        const reqDef = idToUp.get(req);
-        const reqExcludesOwned = (reqDef?.excludes || []).filter((x) => ownedIds.has(x));
-        const ownedExcludesReq = [...ownedIds].filter((id) => (idToUp.get(id)?.excludes || []).includes(req));
-        if (reqExcludesOwned.length || ownedExcludesReq.length) {
-          const reqName = this._selectedUi.upgradeNameById.get(req) || req;
-          return `Requires ${reqName} (path locked)`;
-        }
-      }
-      return null;
-    };
-
-    const remaining = (def.upgrades || []).filter((u) => !ownedIds.has(u.id));
-    const available = remaining.filter((u) => !getPathLockReason(u));
-    const tierFrom = (list) => (list.length ? Math.min(...list.map((u) => u.tier ?? 1)) : null);
-    const activeTier = tierFrom(available) ?? tierFrom(remaining);
-
-    // Show only the active tier.
-    for (const [tier, node] of this._selectedUi.tiers.entries()) {
-      node.wrap.classList.toggle("hidden", activeTier != null ? tier !== activeTier : true);
-    }
-    if (this._selectedUi.upgradeEmpty) {
-      const maxed = activeTier == null;
-      this._selectedUi.upgradeEmpty.style.display = maxed ? "block" : "none";
-      if (maxed) {
-        const pathAccent = chosenTier1 ? getUpgradeAccent(def, chosenTier1) : def.color;
-        const pathLabel = chosenTier1 ? chosenTier1.name : def.name;
-        if (this._selectedUi.upgradeMaxTitle) this._selectedUi.upgradeMaxTitle.textContent = "Maxed";
-        if (this._selectedUi.upgradeMaxSub) this._selectedUi.upgradeMaxSub.textContent = `Path: ${pathLabel}`;
-        if (pathAccent) this._selectedUi.upgradeEmpty.style.setProperty("--accent", pathAccent);
-      }
-    }
-
-    for (const up of def.upgrades || []) {
-      const row = this._selectedUi.upgradesById.get(up.id);
-      if (!row) continue;
-
-      const hidden = activeTier != null && (up.tier ?? 1) !== activeTier;
-      row.card.classList.toggle("hidden", hidden);
-      if (hidden) continue;
-
-      const pathLockReason = getPathLockReason(up);
-      const pathLocked = Boolean(pathLockReason);
-
-      const owned = tower.appliedUpgrades.has(up.id);
-      const cost = this._game.getUpgradeCost(up);
-      const canAfford = money >= cost;
-      const missingReq = (up.requires || []).filter((r) => !tower.appliedUpgrades.has(r));
-      const conflicts = (up.excludes || []).filter((x) => tower.appliedUpgrades.has(x));
-      const hasReq = missingReq.length === 0;
-      const noConflict = conflicts.length === 0;
-      const canBuy = !owned && canAfford && hasReq && noConflict && !pathLocked;
-
-      row.cost.textContent = `${cost}g`;
-
-      if (owned) {
-        row.card.classList.add("owned");
-        row.badge.textContent = "Owned";
-        row.badge.classList.remove("locked");
-        row.badge.classList.add("owned");
-        row.btn.disabled = true;
-        row.btn.textContent = "Owned";
-        row.reason.textContent = "";
-        continue;
-      }
-
-      row.card.classList.remove("owned");
-      row.badge.classList.remove("owned");
-      row.badge.classList.toggle("locked", !canBuy);
-      row.badge.textContent = pathLocked ? "Path Locked" : canBuy ? "Available" : "Locked";
-      row.card.classList.toggle("path-locked", pathLocked);
-      row.btn.disabled = !canBuy;
-      row.btn.textContent = `Buy (-${cost}g)`;
-
-      const reasons = [];
-      if (pathLocked) {
-        reasons.push(pathLockReason);
-      } else {
-        if (!canAfford) reasons.push(`Need ${cost - money}g`);
-        if (!hasReq) reasons.push(`Requires: ${missingReq.map((id) => this._selectedUi.upgradeNameById.get(id) || id).join(", ")}`);
-        if (!noConflict) reasons.push(`Blocked by: ${conflicts.map((id) => this._selectedUi.upgradeNameById.get(id) || id).join(", ")}`);
-      }
-      row.reason.textContent = reasons.join(" • ");
-      row.btn.title = up.description || "";
     }
   }
+
 
   setActiveModifiers(names) {
     const el = this._els.activeModifiers;
@@ -1048,6 +1457,10 @@ export class UI {
     const modeId = this._els.modeSelect?.value;
     const mode = (this._data.modeDefs || []).find((m) => m.id === modeId);
     if (this._els.modeDesc) this._els.modeDesc.textContent = mode?.description || "";
+    if (mode?.recommendedMap && this._els.mapSelect?.value !== mode.recommendedMap) {
+      this._els.mapSelect.value = mode.recommendedMap;
+      this._syncMapPreview();
+    }
   }
 
   _buildModifierList() {
@@ -1153,8 +1566,22 @@ export class UI {
     const w = canvas.width;
     const h = canvas.height;
     ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = "#0b1022";
-    ctx.fillRect(0, 0, w, h);
+    if (map.id === "void_crucible") {
+      const g = ctx.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, "#050714");
+      g.addColorStop(1, "#0a0f25");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
+      const glow = ctx.createRadialGradient(w * 0.5, h * 0.45, 0, w * 0.5, h * 0.45, Math.max(w, h) * 0.7);
+      glow.addColorStop(0, "rgba(79,70,229,0.25)");
+      glow.addColorStop(0.6, "rgba(14,165,233,0.12)");
+      glow.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, w, h);
+    } else {
+      ctx.fillStyle = "#0b1022";
+      ctx.fillRect(0, 0, w, h);
+    }
 
     const mapW = map.cols * map.tileSize;
     const mapH = map.rows * map.tileSize;
@@ -1228,6 +1655,19 @@ export class UI {
       ctx.beginPath();
       ctx.arc(sp.x, sp.y, 6, 0, Math.PI * 2);
       ctx.fill();
+    }
+
+    if (map.id === "void_crucible") {
+      ctx.save();
+      ctx.globalAlpha = 0.35;
+      ctx.strokeStyle = "rgba(56,189,248,0.85)";
+      ctx.lineWidth = 2 / scale;
+      ctx.setLineDash([6 / scale, 6 / scale]);
+      ctx.beginPath();
+      ctx.arc(map.base.x - map.tileSize * 4, map.base.y + map.tileSize * 1.5, map.tileSize * 2.4, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
     }
 
     ctx.restore();
@@ -1384,4 +1824,344 @@ function getUpgradeTags(up, def) {
   if (fx.chainAdd || fx.chainMul || fx.setChain) tags.push({ type: "chain", label: "Chain" });
   if (fx.statsAdd?.critChance || fx.statsMul?.critMult) tags.push({ type: "crit", label: "Crit" });
   return tags;
+}
+
+function getStatsWithUpgrade(tower, def, upgrade, modifiers) {
+  if (!tower || !def || !upgrade) return null;
+  const hadUpgrade = tower.appliedUpgrades.has(upgrade.id);
+  if (!hadUpgrade) tower.appliedUpgrades.add(upgrade.id);
+  let nextStats = null;
+  try {
+    nextStats = tower.computeStats(def, { modifiers });
+  } finally {
+    if (!hadUpgrade) tower.appliedUpgrades.delete(upgrade.id);
+  }
+  return nextStats;
+}
+
+function getUpgradeAbilityDescription(currentStats, nextStats) {
+  const ability = nextStats?.ability || currentStats?.ability;
+  if (!ability) return "";
+  const abilityName = ability.name || currentStats?.ability?.name || "Ability";
+  const abilityDesc = describeTowerAbility(ability, nextStats || currentStats);
+  if (!abilityDesc) return "";
+  return `Ability: ${abilityName} — ${abilityDesc}`;
+}
+
+function getUpgradeStatChanges(currentStats, nextStats) {
+  if (!currentStats || !nextStats) return [];
+  const lines = [];
+  const hasAura = Boolean(currentStats.aura || nextStats.aura);
+
+  if (hasAura) {
+    pushStatChange(lines, "Aura radius", currentStats.aura?.radius, nextStats.aura?.radius, formatInt);
+    const auraBuffs = getAuraBuffChanges(currentStats.aura?.buffs, nextStats.aura?.buffs);
+    lines.push(...auraBuffs);
+  } else {
+    pushStatChange(lines, "Range", currentStats.range, nextStats.range, formatInt);
+    pushStatChange(lines, "Damage", currentStats.damage, nextStats.damage, formatInt);
+    if (currentStats.damageType !== nextStats.damageType) {
+      pushTextChange(lines, "Damage Type", currentStats.damageType, nextStats.damageType);
+    }
+    pushStatChange(lines, "Fire", currentStats.fireRate, nextStats.fireRate, formatRate);
+    pushStatChange(lines, "DPS", calcTotalDps(currentStats).total, calcTotalDps(nextStats).total, formatDps);
+    pushStatChange(lines, "Splash", currentStats.splashRadius, nextStats.splashRadius, formatInt);
+    pushStatChange(lines, "Projectile", currentStats.projectileSpeed, nextStats.projectileSpeed, formatInt);
+    pushStatChange(lines, "Crit Chance", currentStats.critChance, nextStats.critChance, formatPercent);
+    pushStatChange(lines, "Crit Mult", currentStats.critMult, nextStats.critMult, formatMultiplier);
+    if ((currentStats.bonusMult ?? 1) !== (nextStats.bonusMult ?? 1)) {
+      pushStatChange(lines, "Bonus Mult", currentStats.bonusMult, nextStats.bonusMult, formatMultiplier);
+    }
+    if (currentStats.targeting !== nextStats.targeting) {
+      pushTextChange(lines, "Targeting", labelForTargeting(currentStats.targeting), labelForTargeting(nextStats.targeting));
+    }
+    const onHitDelta = diffEffectList(currentStats.onHitEffects, nextStats.onHitEffects);
+    if (onHitDelta) lines.push(`On-hit: ${onHitDelta}`);
+    lines.push(...getChainChangeLines("Chain", currentStats.chain, nextStats.chain));
+  }
+
+  lines.push(...getAbilityChangeLines(currentStats.ability, nextStats.ability));
+  return lines;
+}
+
+function getAbilityChangeLines(currentAbility, nextAbility) {
+  if (!currentAbility && !nextAbility) return [];
+  const lines = [];
+  const cur = currentAbility || {};
+  const nxt = nextAbility || {};
+  pushStatChange(lines, "Ability CD", cur.cooldown, nxt.cooldown, formatSeconds);
+  pushStatChange(lines, "Ability Damage", cur.damage, nxt.damage, formatInt);
+  pushStatChange(lines, "Ability Radius", cur.radius, nxt.radius, formatInt);
+  pushStatChange(lines, "Ability Range", cur.range, nxt.range, formatInt);
+  pushStatChange(lines, "Ability Count", cur.count, nxt.count, formatInt);
+  pushStatChange(lines, "Ability Splash", cur.splashRadius, nxt.splashRadius, formatInt);
+  pushStatChange(lines, "Ability Projectile", cur.projectileSpeed, nxt.projectileSpeed, formatInt);
+  pushStatChange(lines, "Ability Lives", cur.lives, nxt.lives, formatNumber1);
+  pushStatChange(lines, "Ability Bonus Mult", cur.bonusMult, nxt.bonusMult, formatMultiplier);
+  if (cur.damageType !== nxt.damageType) {
+    pushTextChange(lines, "Ability Damage Type", cur.damageType, nxt.damageType);
+  }
+  if (cur.targeting !== nxt.targeting) {
+    pushTextChange(lines, "Ability Targeting", labelForTargeting(cur.targeting), labelForTargeting(nxt.targeting));
+  }
+  const abilityEffects = diffEffectList(cur.effects, nxt.effects);
+  if (abilityEffects) lines.push(`Ability Effects: ${abilityEffects}`);
+  lines.push(...getChainChangeLines("Ability Chain", cur.chain, nxt.chain));
+  lines.push(...getSummonChangeLines(cur.summon, nxt.summon));
+  return lines;
+}
+
+function getSummonChangeLines(currentSummon, nextSummon) {
+  if (!currentSummon && !nextSummon) return [];
+  const lines = [];
+  const cur = currentSummon || {};
+  const nxt = nextSummon || {};
+  pushStatChange(lines, "Summon HP", cur.hp, nxt.hp, formatInt);
+  pushStatChange(lines, "Summon Damage", cur.damage, nxt.damage, formatInt);
+  pushStatChange(lines, "Summon Fire", cur.fireRate, nxt.fireRate, formatRate);
+  pushStatChange(lines, "Summon Range", cur.range, nxt.range, formatInt);
+  pushStatChange(lines, "Summon Life", cur.lifetime, nxt.lifetime, formatSeconds);
+  pushStatChange(lines, "Summon Speed", cur.speed, nxt.speed, formatInt);
+  pushStatChange(lines, "Summon Projectile", cur.projectileSpeed, nxt.projectileSpeed, formatInt);
+  const onHitDelta = diffEffectList(cur.onHitEffects, nxt.onHitEffects);
+  if (onHitDelta) lines.push(`Summon On-hit: ${onHitDelta}`);
+  lines.push(...getChainChangeLines("Summon Chain", cur.chain, nxt.chain));
+  return lines;
+}
+
+function getChainChangeLines(label, currentChain, nextChain) {
+  if (!currentChain && !nextChain) return [];
+  const lines = [];
+  const cur = currentChain || {};
+  const nxt = nextChain || {};
+  const keys = new Set([...Object.keys(cur), ...Object.keys(nxt)]);
+  for (const key of keys) {
+    const curVal = cur[key];
+    const nxtVal = nxt[key];
+    if (curVal == null && nxtVal == null) continue;
+    const lower = key.toLowerCase();
+    let format = formatNumber2;
+    if (lower.includes("range") || lower.includes("radius") || lower.includes("distance")) format = formatInt;
+    if (lower.includes("jump") || lower.includes("count") || lower.includes("max")) format = formatInt;
+    const line = formatChange(`${label} ${formatLabel(key)}`, curVal, nxtVal, format);
+    if (line) lines.push(line);
+  }
+  return lines;
+}
+
+function getAuraBuffChanges(currentBuffs, nextBuffs) {
+  const lines = [];
+  const cur = currentBuffs || {};
+  const nxt = nextBuffs || {};
+  const keys = new Set([...Object.keys(cur), ...Object.keys(nxt)]);
+  for (const key of keys) {
+    const curVal = cur[key];
+    const nxtVal = nxt[key];
+    if (curVal == null && nxtVal == null) continue;
+    const line = formatChange(`Aura Buff (${formatLabel(key).replace(/ Mul$/i, "")})`, curVal, nxtVal, (value) =>
+      formatBuffValue(key, value)
+    );
+    if (line) lines.push(line);
+  }
+  return lines;
+}
+
+function diffEffectList(currentList, nextList) {
+  const current = new Set((currentList || []).map((fx) => formatEffect(fx)).filter(Boolean));
+  const next = new Set((nextList || []).map((fx) => formatEffect(fx)).filter(Boolean));
+  if (!current.size && !next.size) return "";
+  const added = [...next].filter((item) => !current.has(item));
+  const removed = [...current].filter((item) => !next.has(item));
+  const parts = [];
+  if (added.length) parts.push(`+${added.join(", ")}`);
+  if (removed.length) parts.push(`-${removed.join(", ")}`);
+  return parts.join("; ");
+}
+
+function pushStatChange(lines, label, currentVal, nextVal, formatter) {
+  const line = formatChange(label, currentVal, nextVal, formatter);
+  if (line) lines.push(line);
+}
+
+function pushTextChange(lines, label, currentVal, nextVal) {
+  const line = formatChange(label, currentVal, nextVal, (value) => (value == null ? "-" : String(value)));
+  if (line) lines.push(line);
+}
+
+function formatChange(label, currentVal, nextVal, formatter) {
+  if (currentVal == null && nextVal == null) return "";
+  const currentText = formatter(currentVal);
+  const nextText = formatter(nextVal);
+  if (currentText === nextText) return "";
+  return `${label}: ${currentText} -> ${nextText}`;
+}
+
+function formatLabel(value) {
+  if (!value) return "";
+  const withSpaces = String(value)
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/_/g, " ");
+  return withSpaces.charAt(0).toUpperCase() + withSpaces.slice(1);
+}
+
+function formatBuffValue(key, value) {
+  if (value == null) return "-";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "number") {
+    if (/mul$/i.test(key)) return `${fmt(value, 2)}x`;
+    if (/chance/i.test(key)) return `${Math.round(value * 100)}%`;
+    return fmt(value, 2);
+  }
+  return String(value);
+}
+
+function formatInt(value) {
+  if (value == null) return "-";
+  return `${Math.round(value)}`;
+}
+
+function formatNumber1(value) {
+  if (value == null) return "-";
+  return fmt(value, 1);
+}
+
+function formatNumber2(value) {
+  if (value == null) return "-";
+  return fmt(value, 2);
+}
+
+function formatRate(value) {
+  if (value == null) return "-";
+  return `${fmt(value, 2)}/s`;
+}
+
+function formatSeconds(value) {
+  if (value == null) return "-";
+  return `${fmt(value, 1)}s`;
+}
+
+function formatPercent(value) {
+  if (value == null) return "-";
+  return `${Math.round(value * 100)}%`;
+}
+
+function formatMultiplier(value) {
+  if (value == null) return "-";
+  return `${fmt(value, 2)}x`;
+}
+
+function formatDps(value) {
+  if (value == null || Number.isNaN(value)) return "-";
+  return `${fmt(value, 1)}`;
+}
+
+function calcExpectedDamage(damage, critChance, critMult) {
+  if (!damage) return 0;
+  const chance = critChance ?? 0;
+  const mult = critMult ?? 2;
+  return damage * (1 + chance * (mult - 1));
+}
+
+function calcDps(stats) {
+  if (!stats) return null;
+  const damage = stats.damage ?? 0;
+  const fireRate = stats.fireRate ?? 0;
+  if (!damage || !fireRate) return 0;
+  const expectedDamage = calcExpectedDamage(damage, stats.critChance, stats.critMult);
+  return expectedDamage * fireRate;
+}
+
+function calcAbilityDps(ability, stats) {
+  if (!ability) return 0;
+  const cooldown = ability.cooldown ?? 0;
+  if (!cooldown) return 0;
+  const type = String(ability.type || "nova").toLowerCase();
+  if (type === "base_heal") return 0;
+
+  if (type === "summon") {
+    const summon = ability.summon;
+    if (!summon) return 0;
+    const summonDamage = summon.damage ?? 0;
+    const summonFireRate = summon.fireRate ?? 0;
+    if (!summonDamage || !summonFireRate) return 0;
+    const summonExpected = calcExpectedDamage(summonDamage, summon.critChance, summon.critMult);
+    const summonDps = summonExpected * summonFireRate;
+    const count = Math.max(1, ability.count ?? 1);
+    const life = summon.lifetime ?? 0;
+    const uptime = life > 0 ? Math.min(life, cooldown) / cooldown : 1;
+    return summonDps * count * uptime;
+  }
+
+  const count = Math.max(1, ability.count ?? 1);
+  const abilityDamage = ability.damage ?? stats?.damage ?? 0;
+  if (!abilityDamage) return 0;
+  const expectedDamage = calcExpectedDamage(abilityDamage, ability.critChance ?? stats?.critChance, ability.critMult ?? stats?.critMult);
+  return (expectedDamage * count) / cooldown;
+}
+
+function calcTotalDps(stats) {
+  const base = calcDps(stats) || 0;
+  const ability = calcAbilityDps(stats?.ability, stats) || 0;
+  return {
+    base,
+    ability,
+    total: base + ability,
+  };
+}
+
+function describeTowerAbility(ability, stats) {
+  if (!ability) return "";
+  if (ability.description) return ability.description;
+  const type = String(ability.type || "nova").toLowerCase();
+  const damage = Math.round(ability.damage ?? stats?.damage ?? 0);
+  const damageType = ability.damageType ?? stats?.damageType ?? "physical";
+  const range = Math.round(ability.range ?? stats?.range ?? 0);
+  const radius = Math.round(ability.radius ?? range ?? 0);
+  const effects = formatAbilityEffects(ability.effects);
+
+  if (type === "summon") {
+    const count = Math.max(1, ability.count ?? 1);
+    const summonName = ability.summon?.name || "ally";
+    const life = ability.summon?.lifetime;
+    const parts = [`Summons ${count} ${summonName}${count > 1 ? "s" : ""} on nearby paths`];
+    if (life) parts.push(`lasts ${fmt(life, 1)}s`);
+    return parts.join("; ");
+  }
+  if (type === "volley") {
+    const count = Math.max(1, ability.count ?? 3);
+    const splash = ability.splashRadius ? ` with ${Math.round(ability.splashRadius)} splash` : "";
+    const desc = `Fires ${count} shots in ${range}px for ${damage} ${damageType}${splash}`;
+    return effects ? `${desc}; applies ${effects}` : desc;
+  }
+  if (type === "nova") {
+    const desc = `Blasts ${radius}px for ${damage} ${damageType}`;
+    return effects ? `${desc}; applies ${effects}` : desc;
+  }
+  return effects || "Special ability effect";
+}
+
+function formatAbilityEffects(effects) {
+  if (!effects?.length) return "";
+  return effects
+    .map((fx) => formatEffect(fx))
+    .filter(Boolean)
+    .join(", ");
+}
+
+function formatEffect(fx) {
+  if (!fx) return "";
+  const type = String(fx.type || "").toLowerCase();
+  const dur = fx.duration != null ? `${fmt(fx.duration, 1)}s` : "";
+  if (type === "slow") return `slow ${Math.round((fx.magnitude ?? 0) * 100)}% ${dur}`.trim();
+  if (type === "burn") return `burn ${fmt(fx.magnitude ?? 0, 1)}/tick ${dur}`.trim();
+  if (type === "poison") return `poison ${fmt(fx.magnitude ?? 0, 1)}/tick ${dur}`.trim();
+  if (type === "bleed") return `bleed ${fmt(fx.magnitude ?? 0, 1)}/tick ${dur}`.trim();
+  if (type === "stun") return `stun ${dur}`.trim();
+  if (type === "armor_reduction") {
+    const amount = fx.mode === "percent" ? `${Math.round((fx.magnitude ?? 0) * 100)}%` : `${fmt(fx.magnitude ?? 0, 1)}`;
+    return `armor -${amount} ${dur}`.trim();
+  }
+  if (type === "vulnerability") return `vulnerability +${Math.round((fx.magnitude ?? 0) * 100)}% ${dur}`.trim();
+  if (type === "haste") return `haste +${Math.round((fx.magnitude ?? 0) * 100)}% ${dur}`.trim();
+  return type;
 }

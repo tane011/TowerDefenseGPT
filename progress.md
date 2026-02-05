@@ -224,6 +224,17 @@ Tests (2026-02-04):
 - Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-massive.json --click-selector "#start-btn" --iterations 1 --pause-ms 240 --screenshot-dir output/web-game-finalboss-delay`
 
 Notes (2026-02-04):
+- Added a secret admin panel toggled by `~` (or `B` during Playwright) with money/lives controls, enemy and summon spawns, and quick actions.
+- Admin spawns use summon definitions from summoner towers and render with correct sigils even without a source tower.
+- Added fun enemy modifier tools in the admin panel (presets + custom multipliers, apply-to-live, clear effects).
+- Admin enemy modifiers now apply post-spawn to avoid double scaling.
+
+Tests (2026-02-04):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-admin.json --click-selector "#start-btn" --iterations 1 --pause-ms 240 --screenshot-dir output/web-game-admin-panel`
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-admin-open.json --click-selector "#start-btn" --iterations 1 --pause-ms 240 --screenshot-dir output/web-game-admin-open`
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-admin-open.json --click-selector "#start-btn" --iterations 1 --pause-ms 240 --screenshot-dir output/web-game-admin-open-3`
+
+Notes (2026-02-04):
 - Moved Settings card below Help and added two more maps: Citadel Confluence (three lanes) and Wyrmcoil Basin (gauntlet).
 - Reworked newer maps for longer paths and tighter merges.
 
@@ -288,3 +299,181 @@ Tests (2026-02-04):
 Notes (2026-02-04):
 - Added warm-up mechanic for beam towers (ramp up damage while locked; decays when idle).
 - Removed "(active)" suffix from side-panel wave counter to avoid layout shift.
+
+Notes (2026-02-04):
+- Expanded secret admin panel with enemy modifier presets + custom sliders, including live-apply and clear-effects actions.
+- Admin enemy spawns now accept modifier configs and apply scaling safely (no double-scaling).
+- Added admin functions to apply/clear modifiers on existing enemies.
+
+Tests (2026-02-04):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-admin-mods.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-admin-mods`
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-admin-open.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-admin-open-3`
+
+Notes (2026-02-04):
+- Maxed towers now hide upgrade tiers entirely and show the Maxed panel when no available upgrades remain (path-locked-only upgrades count as maxed).
+
+Tests (2026-02-04):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-maxed.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-maxed`
+
+Notes (2026-02-04):
+- Tower ability UI now shows a generated ability effect description (uses ability.description when provided, otherwise auto‑summarizes type + effects).
+- Added new bosses: Tempest Regent, Abyssal Titan, Solar Phoenix with high HP and multi‑ability kits.
+- Existing bosses now include ability descriptions for readability.
+- Wave generator boss pool expanded to include the new bosses at later waves.
+
+Tests (2026-02-04):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-bosses.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-bosses`
+
+Notes (2026-02-04):
+- Boss cast bar now shows ability descriptions beneath the cast label (truncated to fit).
+- Added three more bosses with high HP + multi-ability kits: Mirror Warden, Gravemaw, Aether Oracle.
+- Boss pool expanded to include the new bosses at later waves.
+- Tower ability tooltip now auto-describes abilities based on type/effects if no description is provided.
+
+Tests (2026-02-04):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-bosses.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-bosses-2`
+
+Notes (2026-02-04):
+- Boss cast bar spacing increased again (taller rows + desc line spacing) to avoid overlap.
+- Ally collision now kills the ally instantly on contact while still applying a hit to the enemy.
+
+Tests (2026-02-04):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-bosses.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-bossbar-spacing-2`
+
+Notes (2026-02-04):
+- Rebalanced overall pacing: tower global scaling reduced slightly, costs eased, and wave HP scaling smoothed with a late-game ramp.
+- Mode difficulty multipliers softened to keep challenge without runaway HP spikes.
+
+Tests (2026-02-04):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-balance.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-balance`
+
+Notes (2026-02-04):
+- Added Field Medic tower: support aura grants tower stun immunity + cleanses stuns; ability "Field Triage" periodically restores base lives.
+- Added boss tower-stun mechanic: bosses emit a tower-stun pulse ability; medics prevent stuns within their aura.
+- Tower system now respects tower stun, pausing attacks while stunned.
+
+Tests (2026-02-04):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-balance.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-medic`
+
+Notes (2026-02-04):
+- Rebuilt selected/upgrade panel DOM every update and added a self-healing `_ensureSelectedCardDom()` so the “Selected” content can’t disappear even if the DOM gets clobbered by CSS/hidden state.
+- Selected card now always removes `hidden` when shown; content containers get reattached if missing.
+- Coachmarks no longer auto-open during Playwright runs (skip when `navigator.webdriver`).
+
+Tests (2026-02-04):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-selected-panel.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-selected-panel` (selected panel shows full info + upgrades)
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-unselect.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-selected-panel-unselect` (unselect clears selection)
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-unselect-after.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-selected-panel-unselect-after` (reselect works)
+
+Notes (2026-02-04):
+- Fixed Selected panel layout collapsing by forcing it to opt out of flex shrinking (`flex: 0 0 auto`) and removing fragile RAF timing.
+- Selected panel now hard-rebuilds its DOM every update and forces display for info/actions to prevent disappearing content.
+- Cache-busted main script and CSS to ensure browsers load the new UI.
+
+Tests (2026-02-04):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-show-selected-full.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-selected-panel-show`
+- Manual Playwright DOM inspection via `/tmp/inspect-styles.mjs` confirmed selected card height/opacity correct.
+
+Notes (2026-02-04):
+- Selected panel now shows only the current upgrade tier for the chosen path, and shows a maxed-path summary when fully completed.
+- Fixed selected panel buttons: verified upgrade purchase works and panel updates to the next tier; sell button works.
+
+Tests (2026-02-04):
+- Playwright custom: `/tmp/test-click-panel.mjs` (upgrade button + sell button clickable; upgrades apply)
+- Playwright custom: `/tmp/test-tier-progression.mjs` (tier advances after buying an upgrade)
+
+Notes (2026-02-04):
+- Fixed Selected UI interactivity regression by only rebuilding DOM when the tier/path view changes, preserving event listeners.
+- Tier 1 now correctly shows both path options before a path is chosen; after choosing, a “Path chosen” badge appears and only the current tier is shown.
+
+Tests (2026-02-04):
+- Playwright custom: `/tmp/sidebar-tier1.mjs` (Tier 1 shows both options)
+- Playwright custom: `/tmp/show-path-badge.mjs` (Path chosen badge + Tier 2 only)
+- Playwright custom: `/tmp/test-click-panel.mjs` (upgrade + sell buttons clickable)
+
+Notes (2026-02-04):
+- Added Skip Wave button to end the active wave immediately, clearing remaining spawns/enemies while still awarding the wave-clear bonus.
+
+Tests (2026-02-04):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-skip` (shot-0.png showed only canvas; full UI verified separately).
+- Manual Playwright MCP: started a run, clicked Start Next Wave, confirmed Skip Wave enabled and visible in `output/web-game-skip/fullpage.png`.
+
+Notes (2026-02-04):
+- Boss waves are now unskippable (Skip Wave disabled + blocked in WaveSystem), and any boss reaching the base causes immediate game over.
+
+Tests (2026-02-04):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-boss-skip`
+- Manual Playwright MCP: opened debug menu, spawned a boss with high speed, closed menu, and confirmed Game Over triggered when the boss reached the base (log + overlay).
+
+Notes (2026-02-04):
+- Skip Wave now shows a tooltip: boss waves are unskippable, inactive waves show a hint, and active waves show the action.
+
+Tests (2026-02-04):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-boss-tooltip`
+
+Notes (2026-02-04):
+- Added an always-visible Skip Wave hint line under the wave controls (inactive/boss/active states).
+
+Tests (2026-02-04):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-skip-hint`
+
+Notes (2026-02-04):
+- Skip Wave now requires all spawns to finish first and no longer clears enemies; it only ends the wave early with remaining enemies still active.
+
+Tests (2026-02-04):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-skip-spawn`
+
+Notes (2026-02-04):
+- Added a skip-status dot and countdown hint showing when spawn waves finish; hint switches to ready/locked states.
+
+Tests (2026-02-04):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-skip-countdown`
+
+Notes (2026-02-04):
+- Skipping a wave now auto-starts the next wave (keeps enemies alive).
+
+Tests (2026-02-04):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-skip-autonext`
+
+Notes (2026-02-04):
+- Rebalanced easier modes (Endless, Expedition, Siege) to be far more forgiving: slower spawns, lower HP scaling, softer elite/boss multipliers, fewer elite/boss waves, and reduced seen-enemy shields; updated mode descriptions to match.
+
+Notes (2026-02-05):
+- Easy modes now grant extra starting money/lives via mode.start, and higher wave clear bonuses via difficulty.rewardBonusMul/Add (applied in wave generator).
+
+Notes (2026-02-05):
+- Added Cataclysm mode (80 waves) as the new hardest mode with a structured 3‑act enemy roster and Void Emperor final boss.
+- Wave generator now supports per-mode enemy/elite/boss pools (min/max wave gating).
+- Added new Cataclysm enemies with unique abilities: Riftling (Blink), Veilwalker (Phase Cloak), Nullguard (Shield Surge), Ironweaver (Armor Weave), Chronarch (Overclock), Abyss Herald (Rift Call), Void Sapper (Life Drain), Stasis Reaver (Stasis Burst).
+- Added Void Emperor final boss with Phase 1 abilities (Rift Wave, Void Gate, Oblivion Burst) and a Phase 2 trigger at ~20% HP that heals to full once and swaps to new abilities (Collapse Pulse, Starfall, Phase Dash).
+- Implemented new enemy ability types (blink, phase_cloak, shield_surge, armor_boost, overclock, rift_call, life_drain, stasis_burst, rift_wave, void_gate, oblivion_burst, collapse_pulse, starfall, phase_dash).
+- Added phase-shift system to Enemy with mitigation effects, armor boosts, and phase2 stats/abilities, plus VFX/logging.
+- Added detailed Void Emperor sprite and extra boss visual effects + boss bar phase label. render_game_to_text now exposes boss phase.
+
+Tests (2026-02-05):
+- Playwright (custom): spawned Void Emperor at phase trigger, confirmed phase 2 visuals/boss bar: `output/web-game-cataclysm/shot-phase.png` + `state-phase.json`.
+- Playwright (custom): started Cataclysm, wave 1 spawns new enemies: `output/web-game-cataclysm-start/shot-1.png` + `state-1.json`.
+
+Notes (2026-02-05):
+- Added new map: Void Crucible (tri-lane rift) with three weaving paths, extra decor crystals/ruins, and higher starting resources.
+
+Tests (2026-02-05):
+- Playwright (custom): selected Void Crucible map and started run: `output/web-game-void-crucible/shot-0.png` + `state-0.json`.
+
+Notes (2026-02-05):
+- Cataclysm now recommends the Void Crucible map; selecting the mode auto-switches the map preview.
+- Phase 2 transition updated: boss becomes immune, plays a phase-shift window, then jumps to the start of its current lane before activating new abilities.
+- Added lane-jump ability for phase 2 that switches the boss to another lane at the same relative progress.
+
+Tests (2026-02-05):
+- Playwright (custom): phase 2 transition jump-to-start on Void Crucible: `output/web-game-cataclysm-phase2/shot-1.png` + `state-1.json`.
+- Playwright (custom): lane-jump behavior on Void Crucible: `output/web-game-cataclysm-lanejump/shot-0.png` + `state-0.json`.
+
+Notes (2026-02-05):
+- Lane-jump ability now picks smarter targets (prefer lanes with more enemies; avoids tiny jumps; preserves relative progress) and telegraphs the destination ring during windup.
+- Phase-2 transition now shows a distinct animation overlay while the boss is damage-immune.
+- Void Crucible now has a rift-themed background treatment (both in-game and map preview).
+
+Tests (2026-02-05):
+- Playwright (custom): Void Crucible background theme: `output/web-game-void-crucible-theme/shot-0.png` + `state-0.json`.
+- Playwright (custom): lane-jump telegraph destination: `output/web-game-cataclysm-telegraph/shot-0.png` + `state-0.json`.

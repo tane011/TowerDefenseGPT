@@ -6,6 +6,25 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
+# Close other Terminal windows so this is the only running session (best-effort).
+if [ "$(uname -s)" = "Darwin" ] && command -v osascript >/dev/null 2>&1; then
+  osascript <<'EOF' >/dev/null 2>&1 || true
+with timeout of 2 seconds
+  tell application "Terminal"
+    if (count of windows) is 0 then return
+    set frontId to id of front window
+    repeat with w in windows
+      if id of w is not frontId then
+        try
+          close w
+        end try
+      end if
+    end repeat
+  end tell
+end timeout
+EOF
+fi
+
 if ! command -v node >/dev/null 2>&1; then
   echo "Node.js is required but was not found on PATH."
   echo "Install Node.js from https://nodejs.org and try again."
@@ -14,4 +33,3 @@ if ! command -v node >/dev/null 2>&1; then
 fi
 
 node scripts/start.mjs --open
-

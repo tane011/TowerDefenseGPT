@@ -62,20 +62,29 @@ function chooseTarget(stats, inRange, rng, towerX, towerY) {
 }
 
 export class TowerSystem {
-  constructor({ towerDefs, rng, spawnAlly }) {
+  constructor({ towerDefs, rng, spawnAlly, addLives }) {
     this._towerDefs = towerDefs;
     this._rng = rng;
     this._spawnAlly = spawnAlly;
+    this._addLives = addLives;
   }
 
   update(dt, world) {
     for (const tower of world.towers) {
+      tower.stunRemaining = Math.max(0, (tower.stunRemaining ?? 0) - dt);
       tower.animRecoil = Math.max(0, tower.animRecoil - dt * 8);
       tower.animFlash = Math.max(0, tower.animFlash - dt * 10);
 
       const def = this._towerDefs[tower.defId];
       if (!def) continue;
       const stats = tower.computeStats(def, { modifiers: world.modifiers });
+
+      if (tower.stunRemaining > 0) {
+        tower.cooldown = Math.max(0, tower.cooldown - dt);
+        tower.abilityCooldown = Math.max(0, tower.abilityCooldown - dt);
+        if (tower._beamWarmup) tower._beamWarmup = 0;
+        continue;
+      }
 
       const r2 = stats.range * stats.range;
       const inRange = [];
@@ -190,6 +199,21 @@ export class TowerSystem {
         });
       }
       return ok;
+    }
+
+    if (type === "base_heal") {
+      const lives = Math.max(1, ability.lives ?? ability.heal ?? 1);
+      this._addLives?.(lives);
+      world.vfx.push({
+        type: "pulse",
+        x: tower.x,
+        y: tower.y,
+        radius: ability.radius ?? stats.range ?? 120,
+        color: ability.color ?? "rgba(52,211,153,0.7)",
+        life: 0.45,
+        maxLife: 0.45,
+      });
+      return true;
     }
 
     const range = ability.range ?? stats.range;

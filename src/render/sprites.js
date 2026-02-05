@@ -237,6 +237,23 @@ function towerSprite(defId, color) {
     ctx.lineTo(cx - 5, cy - 2);
     ctx.closePath();
     ctx.fill();
+  } else if (defId === "medic") {
+    ctx.strokeStyle = "rgba(231,236,255,0.85)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - 10);
+    ctx.lineTo(cx, cy + 10);
+    ctx.moveTo(cx - 10, cy);
+    ctx.lineTo(cx + 10, cy);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(52,211,153,0.9)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - 6);
+    ctx.lineTo(cx, cy + 6);
+    ctx.moveTo(cx - 6, cy);
+    ctx.lineTo(cx + 6, cy);
+    ctx.stroke();
   } else if (defId === "sniper") {
     ctx.strokeStyle = "rgba(231,236,255,0.85)";
     ctx.lineWidth = 2.5;
@@ -495,7 +512,13 @@ function enemySprite(defId, color) {
   const cx = size / 2;
   const cy = size / 2;
   const r =
-    defId === "golem" || defId === "colossus" || defId === "overlord" || defId === "harbinger" ? 26 : 22;
+    defId === "golem" ||
+    defId === "colossus" ||
+    defId === "overlord" ||
+    defId === "harbinger" ||
+    defId === "void_emperor"
+      ? 26
+      : 22;
 
   drawBody(ctx, cx, cy, r, base);
   drawCore(ctx, cx, cy + r * 0.1, r * 0.28, rgbToCss(mix(base, { r: 255, g: 255, b: 255 }, 0.2), 0.7));
@@ -816,6 +839,44 @@ function enemySprite(defId, color) {
     ctx.stroke();
     ctx.restore();
     drawEyes(ctx, cx, cy - 2, r, "neutral");
+    return c;
+  }
+
+  if (defId === "void_emperor") {
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    ctx.strokeStyle = "rgba(99,102,241,0.9)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(cx - 14, cy - 8);
+    ctx.lineTo(cx - 8, cy - 18);
+    ctx.lineTo(cx - 2, cy - 10);
+    ctx.lineTo(cx + 4, cy - 18);
+    ctx.lineTo(cx + 10, cy - 10);
+    ctx.lineTo(cx + 16, cy - 8);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    ctx.globalAlpha = 0.85;
+    ctx.strokeStyle = "rgba(244,114,182,0.7)";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.arc(cx, cy + 2, r * 0.9, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+
+    const core = ctx.createRadialGradient(cx, cy + 4, 2, cx, cy + 4, r * 1.2);
+    core.addColorStop(0, "rgba(14,165,233,0.9)");
+    core.addColorStop(1, "rgba(14,165,233,0)");
+    ctx.fillStyle = core;
+    ctx.beginPath();
+    ctx.arc(cx, cy + 4, r * 1.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    drawEyes(ctx, cx, cy, r, "angry");
     return c;
   }
 

@@ -34,6 +34,9 @@ function effectGlyph(type) {
   if (type === "vulnerability") return "V";
   if (type === "bleed") return "D";
   if (type === "haste") return "H";
+  if (type === "armor_boost") return "R";
+  if (type === "phase") return "C";
+  if (type === "fortify") return "F";
   return "?";
 }
 
@@ -46,6 +49,9 @@ function effectAuraColor(type) {
   if (type === "armor_reduction") return "rgba(148,163,184,0.7)";
   if (type === "vulnerability") return "rgba(167,139,250,0.7)";
   if (type === "haste") return "rgba(251,191,36,0.7)";
+  if (type === "armor_boost") return "rgba(148,163,184,0.75)";
+  if (type === "phase") return "rgba(129,140,248,0.7)";
+  if (type === "fortify") return "rgba(14,165,233,0.7)";
   return null;
 }
 
@@ -211,6 +217,65 @@ export class Renderer {
     ctx.restore();
   }
 
+  _drawVoidCrucibleBackdrop(ctx, map, w, h) {
+    const g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, "#050714");
+    g.addColorStop(1, "#0a0f25");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+
+    const nebula = ctx.createRadialGradient(w * 0.5, h * 0.42, 0, w * 0.5, h * 0.42, Math.max(w, h) * 0.7);
+    nebula.addColorStop(0, "rgba(79,70,229,0.28)");
+    nebula.addColorStop(0.4, "rgba(14,165,233,0.18)");
+    nebula.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = nebula;
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.save();
+    ctx.globalAlpha = 0.2;
+    ctx.strokeStyle = "rgba(99,102,241,0.55)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(w * 0.48, h * 0.6, Math.min(w, h) * 0.25, 0.4, Math.PI * 1.3);
+    ctx.stroke();
+    ctx.restore();
+
+    const sigilX = w * 0.48;
+    const sigilY = h * 0.58;
+    const size = Math.min(w, h) * 0.12;
+    this._drawRiftSigil(ctx, sigilX, sigilY, size);
+  }
+
+  _drawRiftSigil(ctx, x, y, size) {
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    ctx.strokeStyle = "rgba(56,189,248,0.8)";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 6]);
+    ctx.beginPath();
+    ctx.arc(x, y, size, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.globalAlpha = 0.25;
+    ctx.strokeStyle = "rgba(167,139,250,0.9)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x, y - size * 0.7);
+    ctx.lineTo(x + size * 0.6, y);
+    ctx.lineTo(x, y + size * 0.7);
+    ctx.lineTo(x - size * 0.6, y);
+    ctx.closePath();
+    ctx.stroke();
+
+    ctx.globalAlpha = 0.2;
+    ctx.fillStyle = "rgba(14,165,233,0.6)";
+    ctx.beginPath();
+    ctx.arc(x, y, size * 0.18, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
   _drawStaticLayer(ctx, map, settings = {}) {
     const w = this._canvas.width;
     const h = this._canvas.height;
@@ -224,11 +289,15 @@ export class Renderer {
       c.width = w;
       c.height = h;
       const sctx = c.getContext("2d", { alpha: false });
-      const g = sctx.createLinearGradient(0, 0, 0, h);
-      g.addColorStop(0, "#0a1024");
-      g.addColorStop(1, "#0c1733");
-      sctx.fillStyle = g;
-      sctx.fillRect(0, 0, w, h);
+      if (map.id === "void_crucible") {
+        this._drawVoidCrucibleBackdrop(sctx, map, w, h);
+      } else {
+        const g = sctx.createLinearGradient(0, 0, 0, h);
+        g.addColorStop(0, "#0a1024");
+        g.addColorStop(1, "#0c1733");
+        sctx.fillStyle = g;
+        sctx.fillRect(0, 0, w, h);
+      }
       if (grid) this._drawGrid(sctx, map);
       this._drawPaths(sctx, map, settings);
       if (decor) this._drawDecor(sctx, map);
@@ -432,9 +501,10 @@ export class Renderer {
     for (const a of world.allies) {
       if (!a.alive) continue;
       const sourceTower = a.sourceTowerId ? world.towers.find((t) => t.id === a.sourceTowerId) : null;
-      const sourceDef = sourceTower ? this._towerDefs[sourceTower.defId] : null;
+      const fallbackDef = a.sourceDefId ? this._towerDefs[a.sourceDefId] : null;
+      const sourceDef = sourceTower ? this._towerDefs[sourceTower.defId] : fallbackDef;
       const sigilColor = sourceDef?.color ?? a.color;
-      const sigilType = sourceTower?.defId ?? "default";
+      const sigilType = sourceTower?.defId ?? a.sourceDefId ?? a.defId ?? "default";
       const bob = Math.sin(time * 3.4 + hash01(a.id) * 8) * 1.2 * motionMul;
       const size = 18;
       ctx.save();
@@ -510,6 +580,58 @@ export class Renderer {
         ctx.beginPath();
         ctx.arc(e.x, e.y + bob, e.radius, 0, Math.PI * 2);
         ctx.fill();
+      }
+
+      if (e._phase2Transition) {
+        ctx.save();
+        const pulse = 0.5 + 0.5 * Math.sin(time * 6 + phase * 6);
+        ctx.translate(e.x, e.y + bob);
+        ctx.rotate(time * 1.6);
+        ctx.globalAlpha = 0.45 + pulse * 0.25;
+        ctx.strokeStyle = "rgba(129,140,248,0.9)";
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([6, 10]);
+        ctx.beginPath();
+        ctx.arc(0, 0, e.radius + 14 + pulse * 6, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 0.35;
+        ctx.strokeStyle = "rgba(244,114,182,0.8)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, e.radius + 6, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      if (e.defId === "void_emperor") {
+        ctx.save();
+        const phaseLevel = e.phase ?? 1;
+        const glow = phaseLevel >= 2 ? "rgba(244,114,182,0.55)" : "rgba(99,102,241,0.5)";
+        const arc = phaseLevel >= 2 ? "rgba(56,189,248,0.65)" : "rgba(14,165,233,0.6)";
+        const spin = time * (phaseLevel >= 2 ? 1.4 : 0.9);
+        ctx.translate(e.x, e.y + bob);
+        ctx.rotate(spin);
+        ctx.globalAlpha = 0.6;
+        ctx.strokeStyle = glow;
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([6, 8]);
+        ctx.beginPath();
+        ctx.arc(0, 0, e.radius + 14 + Math.sin(time * 3) * 2, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.globalAlpha = 0.75;
+        ctx.fillStyle = arc;
+        for (let i = 0; i < 4; i++) {
+          const ang = spin + i * (Math.PI / 2);
+          const px = Math.cos(ang) * (e.radius + 10);
+          const py = Math.sin(ang) * (e.radius + 10);
+          ctx.beginPath();
+          ctx.arc(px, py, 2.6, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
       }
 
       if (showBossRings && e.tags?.has?.("boss")) {
@@ -743,7 +865,7 @@ export class Renderer {
     const pendingList = boss._pendingAbilities?.length ? boss._pendingAbilities : [];
     const pendingRows = Math.min(4, pendingList.length);
     const extraCount = Math.max(0, pendingList.length - pendingRows);
-    const rowH = 18;
+    const rowH = 40;
     const extraH = pendingRows ? pendingRows * rowH + (extraCount ? 14 : 6) : 0;
 
     ctx.save();
@@ -775,7 +897,8 @@ export class Renderer {
     ctx.font = "12px ui-sans-serif, system-ui";
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
-    ctx.fillText(`${boss.name} — BOSS`, x + 8, y + 8);
+    const phaseLabel = boss.phase && boss.phase > 1 ? ` — PHASE ${boss.phase}` : "";
+    ctx.fillText(`${boss.name} — BOSS${phaseLabel}`, x + 8, y + 8);
 
     ctx.textAlign = "right";
     ctx.fillText(`${Math.round(boss.hp)}/${boss.maxHp}`, x + barW - 8, y + 8);
@@ -797,7 +920,18 @@ export class Renderer {
 
         ctx.fillStyle = "rgba(231,236,255,0.85)";
         const label = pending?.label || "Ability";
-        ctx.fillText(`${i === 0 ? "Casting" : "Queued"}: ${label}`, x + 6, cy + 10);
+        const prefix = i === 0 ? "Casting" : "Queued";
+        const labelText = truncateText(ctx, `${prefix}: ${label}`, barW - 12);
+        ctx.fillText(labelText, x + 6, cy + 10);
+        const desc = pending?.desc;
+        if (desc) {
+          ctx.save();
+          ctx.font = "10px ui-sans-serif, system-ui";
+          ctx.fillStyle = "rgba(148,163,184,0.9)";
+          const descText = truncateText(ctx, desc, barW - 12);
+          ctx.fillText(descText, x + 6, cy + 26);
+          ctx.restore();
+        }
       }
       if (extraCount > 0) {
         ctx.fillStyle = "rgba(148,163,184,0.85)";
@@ -1088,6 +1222,16 @@ function drawShieldBadge(ctx, x, y, shield) {
   ctx.fillStyle = "rgba(231,236,255,0.92)";
   ctx.fillText(label, x + padX + icon + gap, cy + 0.2);
   ctx.restore();
+}
+
+function truncateText(ctx, text, maxWidth) {
+  if (!text) return "";
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  let trimmed = text;
+  while (trimmed.length > 3 && ctx.measureText(`${trimmed}…`).width > maxWidth) {
+    trimmed = trimmed.slice(0, -1);
+  }
+  return `${trimmed}…`;
 }
 
 function hash01(s) {

@@ -37,11 +37,11 @@ export class AllySystem {
         if (dist2(ally.x, ally.y, enemy.x, enemy.y) <= r * r) {
           const hit = ally.contactDamage ?? ally.damage * 0.35;
           if (hit > 0 && enemy.takeDamage) {
-            enemy.takeDamage(hit * dt, ally.damageType);
+            enemy.takeDamage(hit, ally.damageType);
           }
-          ally.takeDamage((enemy.contactDamage ?? 6) * dt);
+          ally._alive = false;
           ally.animFlash = Math.max(ally.animFlash, 0.4);
-          if (!ally.alive) break;
+          break;
         }
       }
       if (!ally.alive) {

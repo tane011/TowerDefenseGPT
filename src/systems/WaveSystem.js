@@ -28,6 +28,16 @@ export class WaveSystem {
     return this._waveMeta;
   }
 
+  hasPendingSpawns() {
+    return this._events.length > 0;
+  }
+
+  spawnTimeRemaining() {
+    if (!this._events.length) return 0;
+    const last = this._events[this._events.length - 1];
+    return Math.max(0, (last?.t ?? 0) - this._time);
+  }
+
   canStartNextWave() {
     const mode = this._getMode?.();
     if (mode?.totalWaves && this._state.waveNumber >= mode.totalWaves) return false;
@@ -43,6 +53,29 @@ export class WaveSystem {
     this._events = [...wave.events].sort((a, b) => a.t - b.t);
     this._waveMeta = wave.meta;
     this._log(`Wave ${waveNum} started: ${wave.meta.label}`);
+    return true;
+  }
+
+  skipWave() {
+    if (!this.active || this._state.mode !== "playing") return false;
+    if (this._waveMeta?.hasBoss) {
+      this._log?.("Boss waves cannot be skipped.");
+      return false;
+    }
+    if (this._events.length > 0) {
+      this._log?.("Wait until all enemies have spawned before skipping.");
+      return false;
+    }
+    const waveNum = this._state.waveNumber + 1;
+    this.active = false;
+    this._state.waveNumber = waveNum;
+
+    const bonus = this._waveMeta?.rewardBonus ?? 0;
+    if (bonus > 0) this._awardMoney(bonus);
+    this._log(`Wave ${waveNum} skipped (+${bonus}g). Enemies remain.`);
+    this._autoDelay = 0;
+
+    if (this.canStartNextWave()) this.startNextWave();
     return true;
   }
 

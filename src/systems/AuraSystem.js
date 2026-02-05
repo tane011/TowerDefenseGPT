@@ -20,6 +20,9 @@ export class AuraSystem {
         if (dst === src) continue;
         if (dist2(src.x, src.y, dst.x, dst.y) > r2) continue;
         dst.applyBuff(aura.buffs || {});
+        if (aura.buffs?.cleanseStun && dst.stunRemaining > 0) {
+          dst.stunRemaining = 0;
+        }
       }
     }
   }

@@ -39,6 +39,7 @@ export class Ally {
     this.animFlash = 0;
     this._alive = true;
     this.sourceTowerId = opts.sourceTowerId ?? null;
+    this.sourceDefId = opts.sourceDefId ?? null;
   }
 
   get alive() {
