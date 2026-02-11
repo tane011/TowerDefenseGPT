@@ -1230,7 +1230,7 @@ export const ENEMIES = {
     "tags": [
       "boss"
     ],
-    "hp": 2400,
+    "hp": 1000,
     "speed": 24,
     "armor": 11,
     "reward": 190,
@@ -1289,7 +1289,8 @@ export const ENEMIES = {
     ],
     "phase2": {
       "triggerPct": 0.2,
-      "transitionDuration": 1.6,
+      "transitionDuration": 10,
+      "healDuringTransition": true,
       "jumpToStart": true,
       "speedMul": 1.18,
       "armorAdd": 3,
@@ -1299,8 +1300,23 @@ export const ENEMIES = {
       "clearEffects": true,
       "abilities": [
         {
+          "type": "void_gate",
+          "cooldown": 8.6,
+          "windup": 1.1,
+          "count": 6,
+          "enemyIds": [
+            "abyss_herald",
+            "nullguard",
+            "riftling"
+          ],
+          "radius": 150,
+          "color": "rgba(79,70,229,0.9)",
+          "name": "Void Gate",
+          "description": "Opens massive rifts that summon reinforcements."
+        },
+        {
           "type": "collapse_pulse",
-          "cooldown": 12.5,
+          "cooldown": 9.2,
           "windup": 1.3,
           "radius": 180,
           "fortify": 0.4,
@@ -1311,7 +1327,7 @@ export const ENEMIES = {
         },
         {
           "type": "starfall",
-          "cooldown": 15.2,
+          "cooldown": 11.2,
           "windup": 1.5,
           "radius": 180,
           "damage": 4,
@@ -1323,7 +1339,7 @@ export const ENEMIES = {
         },
         {
           "type": "phase_dash",
-          "cooldown": 13.5,
+          "cooldown": 9.6,
           "windup": 1.1,
           "radius": 150,
           "distance": 150,
@@ -1334,8 +1350,8 @@ export const ENEMIES = {
         },
         {
           "type": "lane_jump",
-          "cooldown": 12.8,
-          "windup": 0.95,
+          "cooldown": 9.8,
+          "windup": 2,
           "radius": 130,
           "minJumpDistance": 90,
           "telegraphRadius": 110,

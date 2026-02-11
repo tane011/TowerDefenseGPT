@@ -5,6 +5,8 @@
   "scripts": {
     "start": "node scripts/start.mjs",
     "start:open": "node scripts/start.mjs --open"
+  },
+  "devDependencies": {
+    "playwright": "^1.58.2"
   }
 }
-

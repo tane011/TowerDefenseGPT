@@ -11,6 +11,14 @@ function mergeOnHitEffects(baseEffects, extraEffects) {
   return out;
 }
 
+function scaleEffectList(list, durationMul, magnitudeMul) {
+  if (!list?.length) return;
+  for (const e of list) {
+    if (typeof e.duration === "number") e.duration *= durationMul;
+    if (typeof e.magnitude === "number") e.magnitude *= magnitudeMul;
+  }
+}
+
 function cloneAbility(ability) {
   if (!ability) return null;
   const summon = ability.summon
@@ -44,6 +52,8 @@ export class Tower {
     this.cooldown = 0;
     this.abilityCooldown = 0;
     this.appliedUpgrades = new Set();
+    this.totalCost = 0;
+    this.totalDamage = 0;
 
     // Optional player override. If null, use the tower's default/upgraded targeting.
     this.targetingOverride = null;
@@ -90,6 +100,11 @@ export class Tower {
 
   applyUpgrade(upgrade) {
     this.appliedUpgrades.add(upgrade.id);
+  }
+
+  recordDamage(amount) {
+    if (!Number.isFinite(amount) || amount <= 0) return;
+    this.totalDamage = (this.totalDamage ?? 0) + amount;
   }
 
   computeStats(def, options = {}) {
@@ -203,24 +218,51 @@ export class Tower {
       }
     }
 
-    // Global upgrade scaling: upgrades cost more but make towers noticeably stronger.
+    // Global upgrade scaling: make early upgrades meaningfully stronger,
+    // then taper additional gains so late tiers don't explode.
     const upgradeCount = this.appliedUpgrades.size;
     if (upgradeCount > 0) {
-      const damageMul = 1 + upgradeCount * 0.05;
-      const fireMul = 1 + upgradeCount * 0.03;
-      const rangeMul = 1 + upgradeCount * 0.025;
-      const speedMul = 1 + upgradeCount * 0.02;
+      const first = 1;
+      const extra = Math.max(0, upgradeCount - 1);
+      const damageMul = 1 + first * 0.28 + extra * 0.12;
+      const fireMul = 1 + first * 0.18 + extra * 0.07;
+      const rangeMul = 1 + first * 0.12 + extra * 0.05;
+      const speedMul = 1 + first * 0.08 + extra * 0.04;
+      const splashMul = 1 + first * 0.1 + extra * 0.05;
+      const auraMul = 1 + first * 0.1 + extra * 0.04;
+      const auraBuffMul = 1 + first * 0.1 + extra * 0.05;
+      const statusMagMul = 1 + first * 0.18 + extra * 0.08;
+      const statusDurMul = 1 + first * 0.15 + extra * 0.07;
+      const summonDamageMul = 1 + first * 0.24 + extra * 0.1;
+      const summonHpMul = 1 + first * 0.2 + extra * 0.08;
+      const summonRangeMul = 1 + first * 0.12 + extra * 0.06;
+      const summonFireMul = 1 + first * 0.12 + extra * 0.05;
+      const abilityCooldownMul = Math.max(0.55, 1 - (first * 0.08 + extra * 0.03));
+
       stats.damage *= damageMul;
       stats.fireRate *= fireMul;
       stats.range *= rangeMul;
       stats.projectileSpeed *= speedMul;
-      if (stats.splashRadius) stats.splashRadius *= 1 + upgradeCount * 0.02;
+      if (stats.splashRadius) stats.splashRadius *= splashMul;
       if (stats.ability?.damage != null) stats.ability.damage *= damageMul;
+      if (stats.ability?.cooldown != null) stats.ability.cooldown *= abilityCooldownMul;
+      if (stats.onHitEffects?.length) scaleEffectList(stats.onHitEffects, statusDurMul, statusMagMul);
+      if (stats.ability?.effects?.length) scaleEffectList(stats.ability.effects, statusDurMul, statusMagMul);
       if (stats.ability?.summon) {
-        if (stats.ability.summon.damage != null) stats.ability.summon.damage *= damageMul;
-        if (stats.ability.summon.hp != null) stats.ability.summon.hp *= 1 + upgradeCount * 0.04;
+        if (stats.ability.summon.damage != null) stats.ability.summon.damage *= summonDamageMul;
+        if (stats.ability.summon.hp != null) stats.ability.summon.hp *= summonHpMul;
+        if (stats.ability.summon.range != null) stats.ability.summon.range *= summonRangeMul;
+        if (stats.ability.summon.fireRate != null) stats.ability.summon.fireRate *= summonFireMul;
+        if (stats.ability.summon.onHitEffects?.length) {
+          scaleEffectList(stats.ability.summon.onHitEffects, statusDurMul, statusMagMul);
+        }
       }
-      if (stats.aura?.radius != null) stats.aura.radius *= 1 + upgradeCount * 0.02;
+      if (stats.aura?.radius != null) stats.aura.radius *= auraMul;
+      if (stats.aura?.buffs) {
+        for (const [k, v] of Object.entries(stats.aura.buffs)) {
+          if (typeof v === "number") stats.aura.buffs[k] = v * auraBuffMul;
+        }
+      }
     }
 
     // Global balance pass: fewer towers, higher impact per tower.

@@ -2106,7 +2106,7 @@ export const TOWERS = {
     "id": "railgun",
     "name": "Railgun",
     "role": "single-target",
-    "cost": 193,
+    "cost": 386,
     "endgame": true,
     "color": "#cbd5f5",
     "stats": {
@@ -2303,11 +2303,426 @@ export const TOWERS = {
       }
     ]
   },
+  "judicator": {
+    "id": "judicator",
+    "name": "Judicator",
+    "role": "single-target",
+    "cost": 448,
+    "endgame": true,
+    "color": "#f472b6",
+    "stats": {
+      "range": 286,
+      "fireRate": 0.24,
+      "damage": 128.5,
+      "damageType": "arcane",
+      "projectileSpeed": 520,
+      "critChance": 0.11,
+      "critMult": 2.6,
+      "targeting": "strongest"
+    },
+    "upgrades": [
+      {
+        "id": "judicator_oath",
+        "tier": 1,
+        "name": "Oath Sigils",
+        "cost": 194,
+        "description": "Higher damage, Longer range.",
+        "excludes": [
+          "judicator_overdrive"
+        ],
+        "effects": {
+          "statsMul": {
+            "damage": 1.17,
+            "range": 1.12
+          }
+        }
+      },
+      {
+        "id": "judicator_overdrive",
+        "tier": 1,
+        "name": "Pulse Overdrive",
+        "cost": 184,
+        "description": "Faster firing, Higher crit chance.",
+        "excludes": [
+          "judicator_oath"
+        ],
+        "effects": {
+          "statsMul": {
+            "fireRate": 1.255
+          },
+          "statsAdd": {
+            "critChance": 0.06
+          }
+        }
+      },
+      {
+        "id": "judicator_verdict",
+        "tier": 2,
+        "name": "Null Verdict",
+        "cost": 254,
+        "description": "Bonus damage.",
+        "requires": [
+          "judicator_oath"
+        ],
+        "effects": {
+          "addBonusTags": [
+            "elite",
+            "boss"
+          ],
+          "bonusMultAdd": 0.24
+        }
+      },
+      {
+        "id": "judicator_focus",
+        "tier": 2,
+        "name": "Judged Focus",
+        "cost": 238,
+        "description": "Higher damage, Stronger crits.",
+        "requires": [
+          "judicator_overdrive"
+        ],
+        "effects": {
+          "statsMul": {
+            "damage": 1.085,
+            "critMult": 1.17
+          }
+        }
+      },
+      {
+        "id": "judicator_edict",
+        "tier": 3,
+        "name": "Final Edict",
+        "cost": 334,
+        "description": "Higher damage, Higher crit chance.",
+        "requires": [
+          "judicator_verdict"
+        ],
+        "effects": {
+          "statsMul": {
+            "damage": 1.34
+          },
+          "statsAdd": {
+            "critChance": 0.08
+          }
+        }
+      },
+      {
+        "id": "judicator_sanction",
+        "tier": 3,
+        "name": "Sanctioned Barrage",
+        "cost": 318,
+        "description": "Faster firing, Stronger crits.",
+        "requires": [
+          "judicator_focus"
+        ],
+        "effects": {
+          "statsMul": {
+            "fireRate": 1.213,
+            "critMult": 1.128
+          }
+        }
+      },
+      {
+        "id": "judicator_execution",
+        "tier": 4,
+        "name": "Execution Edict",
+        "cost": 470,
+        "description": "Unlocks a devastating finisher.",
+        "requires": [
+          "judicator_edict"
+        ],
+        "effects": {
+          "setAbility": {
+            "name": "Execution Edict",
+            "type": "volley",
+            "cooldown": 14.4,
+            "range": 230,
+            "count": 1,
+            "damage": 214.5,
+            "damageType": "arcane",
+            "projectileSpeed": 600,
+            "bonusTags": [
+              "elite",
+              "boss"
+            ],
+            "bonusMult": 1.6,
+            "executeThreshold": 0.3,
+            "executeMult": 1.85,
+            "vfx": {
+              "type": "beam",
+              "color": "rgba(244,114,182,0.9)",
+              "width": 3.6,
+              "life": 0.26
+            },
+            "effects": [
+              {
+                "type": "vulnerability",
+                "magnitude": 0.22,
+                "duration": 3.3
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "judicator_null",
+        "tier": 4,
+        "name": "Null Decree",
+        "cost": 448,
+        "description": "Unlocks a crippling finisher.",
+        "requires": [
+          "judicator_sanction"
+        ],
+        "effects": {
+          "setAbility": {
+            "name": "Null Decree",
+            "type": "volley",
+            "cooldown": 12.6,
+            "range": 221,
+            "count": 1,
+            "damage": 183.5,
+            "damageType": "arcane",
+            "projectileSpeed": 600,
+            "vfx": {
+              "type": "pulse",
+              "color": "rgba(251,191,36,0.85)",
+              "radius": 44,
+              "life": 0.3
+            },
+            "effects": [
+              {
+                "type": "stun",
+                "magnitude": 1,
+                "duration": 0.35
+              },
+              {
+                "type": "armor_reduction",
+                "magnitude": 4.2,
+                "duration": 2.86,
+                "mode": "flat"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "riftpiercer": {
+    "id": "riftpiercer",
+    "name": "Rift Piercer",
+    "role": "single-target",
+    "cost": 472,
+    "endgame": true,
+    "color": "#38bdf8",
+    "stats": {
+      "range": 265,
+      "fireRate": 0.2,
+      "damage": 146.5,
+      "damageType": "lightning",
+      "projectileSpeed": 500,
+      "critChance": 0.085,
+      "critMult": 2.7,
+      "targeting": "strongest"
+    },
+    "upgrades": [
+      {
+        "id": "riftpiercer_phase",
+        "tier": 1,
+        "name": "Phase Barrel",
+        "cost": 198,
+        "description": "Higher damage, Longer range.",
+        "excludes": [
+          "riftpiercer_rails"
+        ],
+        "effects": {
+          "statsMul": {
+            "damage": 1.17,
+            "range": 1.17
+          }
+        }
+      },
+      {
+        "id": "riftpiercer_rails",
+        "tier": 1,
+        "name": "Overclocked Rails",
+        "cost": 188,
+        "description": "Faster firing, Faster projectiles.",
+        "excludes": [
+          "riftpiercer_phase"
+        ],
+        "effects": {
+          "statsMul": {
+            "fireRate": 1.298,
+            "projectileSpeed": 1.17
+          }
+        }
+      },
+      {
+        "id": "riftpiercer_shred",
+        "tier": 2,
+        "name": "Quantum Shred",
+        "cost": 264,
+        "description": "Shreds armor.",
+        "requires": [
+          "riftpiercer_phase"
+        ],
+        "effects": {
+          "addOnHitEffects": [
+            {
+              "type": "armor_reduction",
+              "magnitude": 4.2,
+              "duration": 3.08,
+              "mode": "flat"
+            }
+          ]
+        }
+      },
+      {
+        "id": "riftpiercer_capacitor",
+        "tier": 2,
+        "name": "Storm Capacitor",
+        "cost": 246,
+        "description": "Stronger crits, Higher crit chance.",
+        "requires": [
+          "riftpiercer_rails"
+        ],
+        "effects": {
+          "statsMul": {
+            "critMult": 1.17
+          },
+          "statsAdd": {
+            "critChance": 0.06
+          }
+        }
+      },
+      {
+        "id": "riftpiercer_singularity",
+        "tier": 3,
+        "name": "Singularity Round",
+        "cost": 340,
+        "description": "Higher damage, Bonus damage.",
+        "requires": [
+          "riftpiercer_shred"
+        ],
+        "effects": {
+          "statsMul": {
+            "damage": 1.34
+          },
+          "addBonusTags": [
+            "elite",
+            "boss"
+          ],
+          "bonusMultAdd": 0.3
+        }
+      },
+      {
+        "id": "riftpiercer_tempest",
+        "tier": 3,
+        "name": "Tempest Trigger",
+        "cost": 324,
+        "description": "Faster firing, Higher damage.",
+        "requires": [
+          "riftpiercer_capacitor"
+        ],
+        "effects": {
+          "statsMul": {
+            "fireRate": 1.255,
+            "damage": 1.085
+          }
+        }
+      },
+      {
+        "id": "riftpiercer_lance",
+        "tier": 4,
+        "name": "Rift Lance",
+        "cost": 480,
+        "description": "Unlocks a boss-piercing finisher.",
+        "requires": [
+          "riftpiercer_singularity"
+        ],
+        "effects": {
+          "setAbility": {
+            "name": "Rift Lance",
+            "type": "volley",
+            "cooldown": 16.8,
+            "range": 240,
+            "count": 1,
+            "damage": 238.5,
+            "damageType": "lightning",
+            "projectileSpeed": 640,
+            "bonusTags": [
+              "elite",
+              "boss"
+            ],
+            "bonusMult": 1.7,
+            "vfx": {
+              "type": "beam",
+              "color": "rgba(56,189,248,0.9)",
+              "width": 3.9,
+              "life": 0.24
+            },
+            "effects": [
+              {
+                "type": "stun",
+                "magnitude": 1,
+                "duration": 0.32
+              },
+              {
+                "type": "armor_reduction",
+                "magnitude": 3.8,
+                "duration": 2.64,
+                "mode": "flat"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "riftpiercer_requiem",
+        "tier": 4,
+        "name": "Storm Requiem",
+        "cost": 460,
+        "description": "Unlocks a crippling finisher.",
+        "requires": [
+          "riftpiercer_tempest"
+        ],
+        "effects": {
+          "setAbility": {
+            "name": "Storm Requiem",
+            "type": "volley",
+            "cooldown": 12.6,
+            "range": 232,
+            "count": 1,
+            "damage": 195.5,
+            "damageType": "lightning",
+            "projectileSpeed": 640,
+            "vfx": {
+              "type": "zap",
+              "color": "rgba(125,211,252,0.92)",
+              "life": 0.2
+            },
+            "effects": [
+              {
+                "type": "vulnerability",
+                "magnitude": 0.2,
+                "duration": 3.08
+              },
+              {
+                "type": "slow",
+                "magnitude": 0.28,
+                "duration": 2.21
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
   "rocketpod": {
     "id": "rocketpod",
     "name": "Rocket Pod",
     "role": "splash",
-    "cost": 154,
+    "cost": 339,
     "endgame": true,
     "color": "#f97316",
     "stats": {
@@ -2516,7 +2931,7 @@ export const TOWERS = {
     "id": "beacon",
     "name": "Beacon",
     "role": "support",
-    "cost": 195,
+    "cost": 390,
     "endgame": true,
     "color": "#22d3ee",
     "stats": {
@@ -2707,7 +3122,7 @@ export const TOWERS = {
     "id": "citadel",
     "name": "Citadel",
     "role": "support",
-    "cost": 217,
+    "cost": 434,
     "endgame": true,
     "color": "#a78bfa",
     "stats": {
@@ -2899,7 +3314,7 @@ export const TOWERS = {
     "id": "obliterator",
     "name": "Obliterator",
     "role": "dps",
-    "cost": 434,
+    "cost": 1042,
     "endgame": true,
     "color": "#f97316",
     "stats": {
@@ -3086,7 +3501,7 @@ export const TOWERS = {
     "id": "sunbreaker",
     "name": "Sunbreaker",
     "role": "dps",
-    "cost": 408,
+    "cost": 979,
     "endgame": true,
     "color": "#facc15",
     "stats": {
@@ -3274,7 +3689,7 @@ export const TOWERS = {
     "id": "beamer",
     "name": "Prism Beam",
     "role": "dps",
-    "cost": 471,
+    "cost": 1130,
     "endgame": true,
     "color": "#a78bfa",
     "stats": {

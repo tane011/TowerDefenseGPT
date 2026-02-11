@@ -13,6 +13,7 @@ export class WaveSystem {
     this._time = 0;
     this._events = [];
     this._waveMeta = null;
+    this._spawnTimeTotal = 0;
     this._autoDelay = 0;
   }
 
@@ -21,6 +22,7 @@ export class WaveSystem {
     this._time = 0;
     this._events = [];
     this._waveMeta = null;
+    this._spawnTimeTotal = 0;
     this._autoDelay = 0;
   }
 
@@ -38,6 +40,10 @@ export class WaveSystem {
     return Math.max(0, (last?.t ?? 0) - this._time);
   }
 
+  spawnTimeTotal() {
+    return Math.max(0, this._spawnTimeTotal || 0);
+  }
+
   canStartNextWave() {
     const mode = this._getMode?.();
     if (mode?.totalWaves && this._state.waveNumber >= mode.totalWaves) return false;
@@ -51,8 +57,13 @@ export class WaveSystem {
     this.active = true;
     this._time = 0;
     this._events = [...wave.events].sort((a, b) => a.t - b.t);
+    this._spawnTimeTotal = this._events.length ? this._events[this._events.length - 1].t ?? 0 : 0;
     this._waveMeta = wave.meta;
     this._log(`Wave ${waveNum} started: ${wave.meta.label}`);
+    if (this._state.settings?.pauseOnBossWave && wave.meta?.hasBoss) {
+      this._state.paused = true;
+      this._log?.("Paused: boss wave starting.");
+    }
     return true;
   }
 
@@ -105,6 +116,10 @@ export class WaveSystem {
       if (bonus > 0) this._awardMoney(bonus);
       this._log(`Wave ${waveNum} cleared (+${bonus}g).`);
       this._autoDelay = 0.75;
+      if (this._state.settings?.pauseOnWaveEnd) {
+        this._state.paused = true;
+        this._log?.("Paused: wave cleared.");
+      }
 
       const mode = this._getMode?.();
       if (mode?.totalWaves && waveNum >= mode.totalWaves) {

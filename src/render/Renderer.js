@@ -1,6 +1,8 @@
 import { clamp } from "../core/math.js";
 import { buildSprites } from "./sprites.js";
 
+const BOSS_BAR_CANVAS_HEIGHT = 128;
+
 function roundRect(ctx, x, y, w, h, r) {
   const rr = Math.min(r, w / 2, h / 2);
   ctx.beginPath();
@@ -25,19 +27,211 @@ function drawHealthBar(ctx, x, y, w, h, t, color = "#34d399") {
   ctx.restore();
 }
 
-function effectGlyph(type) {
-  if (type === "slow") return "S";
-  if (type === "burn") return "B";
-  if (type === "poison") return "P";
-  if (type === "stun") return "!";
-  if (type === "armor_reduction") return "A";
-  if (type === "vulnerability") return "V";
-  if (type === "bleed") return "D";
-  if (type === "haste") return "H";
-  if (type === "armor_boost") return "R";
-  if (type === "phase") return "C";
-  if (type === "fortify") return "F";
-  return "?";
+function drawShield(ctx, x, y, r, filled = false) {
+  ctx.beginPath();
+  ctx.moveTo(x - r * 0.6, y - r * 0.6);
+  ctx.lineTo(x + r * 0.6, y - r * 0.6);
+  ctx.lineTo(x + r * 0.5, y + r * 0.2);
+  ctx.lineTo(x, y + r * 0.75);
+  ctx.lineTo(x - r * 0.5, y + r * 0.2);
+  ctx.closePath();
+  if (filled) ctx.fill();
+  else ctx.stroke();
+}
+
+function drawSnowflake(ctx, x, y, r) {
+  const arm = r * 0.78;
+  const diag = r * 0.55;
+  ctx.beginPath();
+  ctx.moveTo(x - arm, y);
+  ctx.lineTo(x + arm, y);
+  ctx.moveTo(x, y - arm);
+  ctx.lineTo(x, y + arm);
+  ctx.moveTo(x - diag, y - diag);
+  ctx.lineTo(x + diag, y + diag);
+  ctx.moveTo(x - diag, y + diag);
+  ctx.lineTo(x + diag, y - diag);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(x, y, Math.max(1, r * 0.18), 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawFlame(ctx, x, y, r) {
+  ctx.beginPath();
+  ctx.moveTo(x, y + r * 0.75);
+  ctx.quadraticCurveTo(x + r * 0.75, y + r * 0.15, x + r * 0.2, y - r * 0.65);
+  ctx.quadraticCurveTo(x, y - r * 0.95, x - r * 0.2, y - r * 0.65);
+  ctx.quadraticCurveTo(x - r * 0.75, y + r * 0.15, x, y + r * 0.75);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawDrop(ctx, x, y, r) {
+  ctx.beginPath();
+  ctx.moveTo(x, y - r * 0.7);
+  ctx.quadraticCurveTo(x + r * 0.6, y - r * 0.05, x, y + r * 0.85);
+  ctx.quadraticCurveTo(x - r * 0.6, y - r * 0.05, x, y - r * 0.7);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawStun(ctx, x, y, r) {
+  const arm = r * 0.78;
+  const diag = r * 0.55;
+  ctx.beginPath();
+  ctx.moveTo(x - arm, y);
+  ctx.lineTo(x + arm, y);
+  ctx.moveTo(x, y - arm);
+  ctx.lineTo(x, y + arm);
+  ctx.moveTo(x - diag, y - diag);
+  ctx.lineTo(x + diag, y + diag);
+  ctx.moveTo(x - diag, y + diag);
+  ctx.lineTo(x + diag, y - diag);
+  ctx.stroke();
+}
+
+function drawTarget(ctx, x, y, r) {
+  ctx.beginPath();
+  ctx.arc(x, y, r * 0.65, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x - r * 0.7, y);
+  ctx.lineTo(x + r * 0.7, y);
+  ctx.moveTo(x, y - r * 0.7);
+  ctx.lineTo(x, y + r * 0.7);
+  ctx.stroke();
+}
+
+function drawBleed(ctx, x, y, r) {
+  drawDrop(ctx, x - r * 0.1, y, r * 0.9);
+  ctx.beginPath();
+  ctx.moveTo(x + r * 0.2, y + r * 0.1);
+  ctx.lineTo(x + r * 0.65, y + r * 0.55);
+  ctx.stroke();
+}
+
+function drawHaste(ctx, x, y, r) {
+  const offset = r * 0.35;
+  const width = r * 0.7;
+  const height = r * 0.6;
+  ctx.beginPath();
+  ctx.moveTo(x - width - offset, y - height);
+  ctx.lineTo(x - offset, y);
+  ctx.lineTo(x - width - offset, y + height);
+  ctx.moveTo(x - width + offset, y - height);
+  ctx.lineTo(x + offset, y);
+  ctx.lineTo(x - width + offset, y + height);
+  ctx.stroke();
+}
+
+function drawPhase(ctx, x, y, r) {
+  ctx.beginPath();
+  ctx.arc(x, y, r * 0.62, -0.8, 1.8);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(x, y, r * 0.32, 2.2, 5.2);
+  ctx.stroke();
+}
+
+function drawFortify(ctx, x, y, r) {
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const ang = Math.PI / 6 + (i * Math.PI) / 3;
+    const px = x + Math.cos(ang) * r * 0.75;
+    const py = y + Math.sin(ang) * r * 0.75;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.stroke();
+}
+
+function effectIconData(type) {
+  if (type === "slow") return { color: "#60a5fa", draw: drawSnowflake };
+  if (type === "burn") return { color: "#fb923c", draw: drawFlame };
+  if (type === "poison") return { color: "#34d399", draw: (ctx, x, y, r) => {
+    drawDrop(ctx, x, y, r);
+    ctx.beginPath();
+    ctx.arc(x + r * 0.2, y + r * 0.1, Math.max(1, r * 0.2), 0, Math.PI * 2);
+    ctx.fill();
+  }};
+  if (type === "stun") return { color: "#facc15", draw: drawStun };
+  if (type === "armor_reduction") return { color: "#94a3b8", draw: (ctx, x, y, r) => {
+    drawShield(ctx, x, y, r);
+    ctx.beginPath();
+    ctx.moveTo(x - r * 0.1, y - r * 0.15);
+    ctx.lineTo(x + r * 0.2, y + r * 0.1);
+    ctx.lineTo(x, y + r * 0.45);
+    ctx.stroke();
+  }};
+  if (type === "vulnerability") return { color: "#a78bfa", draw: drawTarget };
+  if (type === "bleed") return { color: "#ef4444", draw: drawBleed };
+  if (type === "haste") return { color: "#f59e0b", draw: drawHaste };
+  if (type === "armor_boost") return { color: "#93c5fd", draw: (ctx, x, y, r) => {
+    drawShield(ctx, x, y, r, true);
+    ctx.beginPath();
+    ctx.moveTo(x - r * 0.35, y);
+    ctx.lineTo(x + r * 0.35, y);
+    ctx.moveTo(x, y - r * 0.35);
+    ctx.lineTo(x, y + r * 0.35);
+    ctx.stroke();
+  }};
+  if (type === "phase") return { color: "#818cf8", draw: drawPhase };
+  if (type === "fortify") return { color: "#0ea5e9", draw: drawFortify };
+  return { color: "rgba(231,236,255,0.6)", draw: (ctx, x, y, r) => {
+    ctx.beginPath();
+    ctx.arc(x, y, Math.max(1, r * 0.3), 0, Math.PI * 2);
+    ctx.fill();
+  }};
+}
+
+function drawEffectIcon(ctx, type, x, y, size) {
+  const icon = effectIconData(type);
+  const r = size / 2;
+  ctx.save();
+  ctx.globalAlpha = 0.95;
+  ctx.shadowColor = icon.color;
+  ctx.shadowBlur = Math.max(2, r * 0.65);
+  ctx.fillStyle = icon.color;
+  ctx.strokeStyle = "rgba(4,6,14,0.85)";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = "rgba(255,255,255,0.18)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(x, y, Math.max(1, r - 1.2), 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalAlpha = 0.98;
+  ctx.strokeStyle = "rgba(255,255,255,0.98)";
+  ctx.fillStyle = "rgba(255,255,255,0.98)";
+  ctx.lineWidth = 1.35;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  icon.draw(ctx, x, y, r * 0.78);
+  ctx.restore();
+}
+
+function effectSortPriority(type) {
+  if (type === "stun") return 0;
+  if (type === "armor_reduction") return 1;
+  if (type === "vulnerability") return 2;
+  if (type === "slow") return 3;
+  if (type === "burn") return 4;
+  if (type === "poison") return 5;
+  if (type === "bleed") return 6;
+  if (type === "phase") return 7;
+  if (type === "armor_boost") return 8;
+  if (type === "fortify") return 9;
+  if (type === "haste") return 10;
+  return 20;
 }
 
 function effectAuraColor(type) {
@@ -56,9 +250,11 @@ function effectAuraColor(type) {
 }
 
 export class Renderer {
-  constructor({ canvas, towerDefs, enemyDefs }) {
+  constructor({ canvas, bossCanvas, towerDefs, enemyDefs }) {
     this._canvas = canvas;
     this._ctx = canvas.getContext("2d", { alpha: false });
+    this._bossCanvas = bossCanvas || null;
+    this._bossCtx = bossCanvas ? bossCanvas.getContext("2d") : null;
     this._towerDefs = towerDefs;
     this._enemyDefs = enemyDefs;
     this._sprites = buildSprites({ towerDefs, enemyDefs });
@@ -72,6 +268,8 @@ export class Renderer {
     const h = this._canvas.height;
     const time = state?.time ?? 0;
     const settings = ui?.settings || world?.settings || {};
+    const phaseShift = this._getPhaseShiftState(world, time);
+    const shake = this._getPhaseShiftShake(phaseShift, settings, time);
 
     if (!map) {
       ctx.fillStyle = "#0b1022";
@@ -82,6 +280,8 @@ export class Renderer {
       return;
     }
 
+    ctx.save();
+    if (shake.x || shake.y) ctx.translate(shake.x, shake.y);
     this._drawStaticLayer(ctx, map, settings);
     const towerById = new Map(world.towers.map((t) => [t.id, t]));
     this._drawTowers(ctx, map, world, state, ui, time);
@@ -89,9 +289,65 @@ export class Renderer {
     this._drawProjectiles(ctx, world);
     this._drawEnemies(ctx, world, time);
     this._drawVfx(ctx, world, time);
+    ctx.restore();
 
-    if (settings.showBossBar !== false) this._drawBossBar(ctx, world);
-    this._drawHud(ctx, state, world);
+    if (phaseShift) this._drawPhaseShiftOverlay(ctx, w, h, phaseShift, settings, time);
+
+    this._renderBossBar(world, settings, state, ui, map);
+  }
+
+  _getPhaseShiftState(world, time) {
+    const boss = world?.enemies?.find?.(
+      (e) => e.alive && e.tags?.has?.("boss") && (e._phase2Transition || e._phase2Afterglow)
+    );
+    if (!boss) return null;
+    const shift = boss._phase2Transition || { remaining: 0, total: 1 };
+    const progress = shift.total > 0 ? clamp(1 - shift.remaining / shift.total, 0, 1) : 1;
+    const inTransition = Boolean(boss._phase2Transition);
+    const afterglowTime = boss._phase2AfterglowTime ?? 0;
+    const shakeRamp = boss._phase2Afterglow ? clamp(afterglowTime / 8, 0, 1) : progress * 0.35;
+    const pulse = 0.5 + 0.5 * Math.sin(time * 3.8 + progress * 6);
+    return { boss, shift, progress, pulse, inTransition, shakeRamp };
+  }
+
+  _getPhaseShiftShake(phaseShift, settings = {}, time = 0) {
+    if (!phaseShift) return { x: 0, y: 0 };
+    const motionMul = settings.reduceMotion ? 0.4 : 1;
+    const ramp = clamp(phaseShift.shakeRamp ?? 0, 0, 1);
+    const min = 0.2;
+    const max = 2.1;
+    const intensity = (min + (max - min) * ramp) * motionMul;
+    return {
+      x: Math.sin(time * 42) * intensity,
+      y: Math.cos(time * 37) * intensity,
+    };
+  }
+
+  _drawPhaseShiftOverlay(ctx, w, h, phaseShift, settings = {}, time = 0) {
+    const motionMul = settings.reduceMotion ? 0.6 : 1;
+    const ramp = clamp(phaseShift.shakeRamp ?? 0, 0, 1);
+    const intensity = (0.12 + ramp * 0.3) * motionMul;
+    const pulse = 0.7 + phaseShift.pulse * 0.3;
+    const alpha = intensity * pulse;
+    if (alpha <= 0) return;
+
+    const boss = phaseShift.boss;
+    const centerX = clamp(boss?.x ?? w * 0.5, 0, w);
+    const centerY = clamp(boss?.y ?? h * 0.5, 0, h);
+    const radius = Math.max(w, h) * (0.7 + phaseShift.progress * 0.5);
+    const g = ctx.createRadialGradient(centerX, centerY, 40, centerX, centerY, radius);
+    g.addColorStop(0, `rgba(99,102,241,${0.25 * alpha})`);
+    g.addColorStop(0.6, `rgba(56,189,248,${0.18 * alpha})`);
+    g.addColorStop(1, `rgba(14,165,233,${0.08 * alpha})`);
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+    ctx.globalCompositeOperation = "source-over";
+    ctx.globalAlpha = 0.2 * alpha;
+    ctx.fillStyle = "rgba(15,23,42,0.9)";
+    ctx.fillRect(0, 0, w, h);
+    ctx.restore();
   }
 
   _drawGrid(ctx, map) {
@@ -632,6 +888,97 @@ export class Renderer {
           ctx.fill();
         }
         ctx.restore();
+
+        if (phaseLevel >= 2) {
+          const pulse = 0.5 + 0.5 * Math.sin(time * 5 + phase * 4);
+          const glowR = e.radius + 16 + pulse * 6;
+          ctx.save();
+          ctx.translate(e.x, e.y + bob);
+          const g = ctx.createRadialGradient(0, 0, 0, 0, 0, glowR);
+          g.addColorStop(0, "rgba(244,114,182,0.55)");
+          g.addColorStop(0.55, "rgba(56,189,248,0.25)");
+          g.addColorStop(1, "rgba(56,189,248,0)");
+          ctx.globalAlpha = 0.75;
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.arc(0, 0, glowR, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.globalAlpha = 0.85;
+          ctx.strokeStyle = "rgba(56,189,248,0.85)";
+          ctx.lineWidth = 2;
+          const spikes = 6;
+          for (let i = 0; i < spikes; i++) {
+            const ang = time * 1.8 + i * ((Math.PI * 2) / spikes);
+            const inner = e.radius + 10;
+            const outer = inner + 8 + pulse * 6;
+            ctx.beginPath();
+            ctx.moveTo(Math.cos(ang) * inner, Math.sin(ang) * inner);
+            ctx.lineTo(Math.cos(ang) * outer, Math.sin(ang) * outer);
+            ctx.stroke();
+          }
+
+          ctx.globalAlpha = 0.9;
+          ctx.fillStyle = "rgba(251,113,133,0.9)";
+          ctx.beginPath();
+          ctx.arc(0, 0, 5 + pulse * 2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+
+        if (e._phase2Transition) {
+          const shift = e._phase2Transition;
+          const progress = shift.total > 0 ? clamp(1 - shift.remaining / shift.total, 0, 1) : 1;
+          const pulse = 0.5 + 0.5 * Math.sin(time * 5 + phase * 8);
+          const swirlSpeed = (2.2 + progress * 1.2) * motionMul;
+          ctx.save();
+          ctx.translate(e.x, e.y + bob);
+          ctx.rotate(time * swirlSpeed);
+          ctx.globalAlpha = 0.35 + pulse * 0.35;
+          ctx.strokeStyle = "rgba(56,189,248,0.85)";
+          ctx.lineWidth = 2.5;
+          ctx.setLineDash([5, 7]);
+          ctx.beginPath();
+          ctx.arc(0, 0, e.radius + 22 + progress * 8, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.globalAlpha = 0.35 + progress * 0.4;
+          ctx.strokeStyle = "rgba(244,114,182,0.75)";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          const shards = 8;
+          for (let i = 0; i < shards; i++) {
+            const ang = (Math.PI * 2 * i) / shards + time * 1.1;
+            const inner = e.radius + 10;
+            const outer = inner + 14 + 6 * Math.sin(time * 3 + i);
+            ctx.moveTo(Math.cos(ang) * inner, Math.sin(ang) * inner);
+            ctx.lineTo(Math.cos(ang) * outer, Math.sin(ang) * outer);
+          }
+          ctx.stroke();
+          ctx.restore();
+
+          if (shift.anchor) {
+            const anchor = shift.anchor;
+            const anchorRadius = shift.anchorRadius ?? Math.max(110, e.radius * 6);
+            ctx.save();
+            ctx.globalAlpha = 0.35 + pulse * 0.35;
+            ctx.strokeStyle = "rgba(56,189,248,0.8)";
+            ctx.lineWidth = 2;
+            ctx.setLineDash([8, 10]);
+            ctx.beginPath();
+            ctx.moveTo(e.x, e.y + bob);
+            ctx.lineTo(anchor.x, anchor.y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.globalAlpha = 0.3 + pulse * 0.25;
+            ctx.strokeStyle = "rgba(129,140,248,0.75)";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(anchor.x, anchor.y, anchorRadius * (0.65 + 0.08 * Math.sin(time * 4)), 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+          }
+        }
       }
 
       if (showBossRings && e.tags?.has?.("boss")) {
@@ -684,17 +1031,37 @@ export class Renderer {
         }
       }
 
-      // Status glyphs
+      // Status icons
       if (showStatusGlyphs && e.effects.length) {
-        ctx.globalAlpha = 0.9;
-        ctx.font = "10px ui-monospace, Menlo, monospace";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        const shown = e.effects.slice(0, 4);
+        const sorted = [...e.effects].sort((a, b) => effectSortPriority(a.type) - effectSortPriority(b.type));
+        const shown = sorted.slice(0, 4);
+        const size = 16;
+        const gap = 3;
+        const total = shown.length * size + (shown.length - 1) * gap;
+        const startX = e.x - total / 2 + size / 2;
+        const y = e.y + bob + e.radius + 14;
         for (let i = 0; i < shown.length; i++) {
-          const g = effectGlyph(shown[i].type);
-          ctx.fillStyle = "rgba(231,236,255,0.85)";
-          ctx.fillText(g, e.x - 9 + i * 6, e.y + bob + e.radius + 10);
+          drawEffectIcon(ctx, shown[i].type, startX + i * (size + gap), y, size);
+        }
+        const remaining = sorted.length - shown.length;
+        if (remaining > 0) {
+          const extraX = startX + shown.length * (size + gap) + size * 0.3;
+          const r = size * 0.42;
+          ctx.save();
+          ctx.globalAlpha = 0.9;
+          ctx.fillStyle = "rgba(8,10,18,0.75)";
+          ctx.strokeStyle = "rgba(231,236,255,0.35)";
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.arc(extraX, y, r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = "rgba(231,236,255,0.9)";
+          ctx.font = "9px ui-sans-serif, system-ui";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(`+${remaining}`, extraX, y + 0.5);
+          ctx.restore();
         }
       }
     }
@@ -788,6 +1155,58 @@ export class Renderer {
         ctx.globalAlpha = (0.2 - t * 0.18) * scale;
         ctx.lineWidth = 8;
         ctx.stroke();
+      } else if (v.type === "void_aura") {
+        const r = v.radius * (0.55 + 0.5 * t) * scale;
+        const pulse = 0.5 + 0.5 * Math.sin(time * 4 + t * 6);
+        ctx.globalAlpha = (0.55 - t * 0.5) * scale;
+        ctx.strokeStyle = withAlpha(v.color ?? "rgba(129,140,248,0.9)", 0.9);
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([6, 10]);
+        ctx.beginPath();
+        ctx.arc(v.x, v.y, r * (0.9 + pulse * 0.1), 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.globalAlpha = (0.35 - t * 0.3) * scale;
+        ctx.strokeStyle = withAlpha(v.accent ?? "rgba(244,114,182,0.8)", 0.8);
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(v.x, v.y, r * 0.65, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.globalAlpha = (0.45 - t * 0.4) * scale;
+        ctx.fillStyle = withAlpha(v.accent ?? "rgba(244,114,182,0.8)", 0.7);
+        const orbs = 6;
+        for (let i = 0; i < orbs; i++) {
+          const ang = time * 1.2 + (Math.PI * 2 * i) / orbs;
+          const px = v.x + Math.cos(ang) * (r * 0.5);
+          const py = v.y + Math.sin(ang) * (r * 0.5);
+          ctx.beginPath();
+          ctx.arc(px, py, 2.2 + pulse * 1.6, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (v.type === "rift_spark") {
+        const r = (v.radius ?? 6) * (0.6 + 0.6 * t) * scale;
+        const alpha = Math.max(0, (0.75 - t * 0.7) * scale);
+        const rot = (v.rotation ?? 0) + time * (v.spin ?? 2.2);
+        ctx.save();
+        ctx.translate(v.x, v.y);
+        ctx.rotate(rot);
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = withAlpha(v.color ?? "rgba(129,140,248,0.9)", 0.9);
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(-r, 0);
+        ctx.lineTo(r, 0);
+        ctx.moveTo(0, -r);
+        ctx.lineTo(0, r);
+        ctx.stroke();
+        ctx.globalAlpha = alpha * 0.6;
+        ctx.fillStyle = withAlpha(v.accent ?? "rgba(244,114,182,0.9)", 0.7);
+        ctx.beginPath();
+        ctx.arc(0, 0, r * 0.35, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
       } else if (v.type === "telegraph") {
         const teleScale = Math.max(0.7, scale);
         const r = v.radius * (0.6 + 0.4 * t) * teleScale;
@@ -852,90 +1271,335 @@ export class Renderer {
     ctx.restore();
   }
 
-  _drawBossBar(ctx, world) {
-    const boss = world.enemies.find((e) => e.alive && e.tags?.has?.("boss"));
-    if (!boss) return;
+  _renderBossBar(world, settings = {}, state = null, ui = null, map = null) {
+    if (!this._bossCanvas || !this._bossCtx) {
+      if (settings.showBossBar !== false) {
+        this._drawBossBar(this._ctx, world, { state, mode: ui?.modeInfo || null, map, status: ui?.status || null });
+      }
+      return;
+    }
 
-    const w = this._canvas.width;
-    const pad = 14;
-    const barW = Math.round(w * 0.56);
-    const barH = 16;
+    const boss = world?.enemies?.find?.((e) => e.alive && e.tags?.has?.("boss"));
+    const shouldShow = settings.showBossBar !== false;
+    const el = this._bossCanvas;
+
+    if (!shouldShow) {
+      if (!el.classList.contains("is-hidden")) el.classList.add("is-hidden");
+      this._bossCtx.clearRect(0, 0, el.width, el.height);
+      return;
+    }
+
+    const layout = this._getBossBarLayout();
+    const targetWidth = this._canvas.width;
+    if (el.width !== targetWidth) el.width = targetWidth;
+    if (el.height !== layout.height) el.height = layout.height;
+    if (el.classList.contains("is-hidden")) el.classList.remove("is-hidden");
+
+    this._bossCtx.clearRect(0, 0, el.width, el.height);
+    this._drawBossBar(this._bossCtx, world, {
+      boss,
+      width: el.width,
+      height: layout.height,
+      pad: layout.pad,
+      state,
+      mode: ui?.modeInfo || null,
+      map,
+      status: ui?.status || null,
+    });
+  }
+
+  _getBossBarMetrics(boss, opts = {}) {
+    const rawPending = boss?._pendingAbilities?.length ? boss._pendingAbilities : [];
+    const pendingList = rawPending
+      .map((item, idx) => ({ item, idx }))
+      .sort((a, b) => {
+        const ar = Number.isFinite(a.item?.remaining) ? a.item.remaining : Number.POSITIVE_INFINITY;
+        const br = Number.isFinite(b.item?.remaining) ? b.item.remaining : Number.POSITIVE_INFINITY;
+        if (ar !== br) return ar - br;
+        return a.idx - b.idx;
+      })
+      .map(({ item }) => item);
+    const maxRows = opts.maxRows ?? 2;
+    const rowH = opts.rowH ?? 24;
+    const pendingRows = Math.min(maxRows, pendingList.length);
+    const extraCount = Math.max(0, pendingList.length - pendingRows);
+    return { pendingList, pendingRows, extraCount, rowH };
+  }
+
+  _getBossBarLayout(opts = {}) {
+    const pad = opts.pad ?? 10;
+    const height = opts.height ?? BOSS_BAR_CANVAS_HEIGHT;
+    return { pad, height };
+  }
+
+  _drawBossBar(ctx, world, opts = {}) {
+    const boss = opts.boss ?? world.enemies.find((e) => e.alive && e.tags?.has?.("boss"));
+    const state = opts.state || null;
+    const mode = opts.mode || null;
+    const map = opts.map || null;
+    const status = opts.status || null;
+    const time = Number.isFinite(state?.time) ? state.time : 0;
+    const hasBoss = Boolean(boss);
+
+    const w = opts.width ?? this._canvas.width;
+    const height = opts.height ?? BOSS_BAR_CANVAS_HEIGHT;
+    const pad = opts.pad ?? 10;
+    const barW = Math.round(w * 0.64);
+    const barH = 12;
+    const headerH = 24;
+    const sectionGap = 10;
+    const innerPad = 16;
     const x = Math.round((w - barW) / 2);
     const y = pad;
-    const pendingList = boss._pendingAbilities?.length ? boss._pendingAbilities : [];
-    const pendingRows = Math.min(4, pendingList.length);
-    const extraCount = Math.max(0, pendingList.length - pendingRows);
-    const rowH = 40;
-    const extraH = pendingRows ? pendingRows * rowH + (extraCount ? 14 : 6) : 0;
+    const panelH = Math.max(0, height - pad * 2);
+    const innerX = x + innerPad;
+    const innerW = barW - innerPad * 2;
+    const headerY = y + 6;
+    const headerMid = headerY + headerH / 2;
+    const barY = headerY + headerH + 6;
+    const pendingStartY = barY + barH + sectionGap;
+    const hasPhaseShift = hasBoss && Boolean(boss._phase2Transition);
+    const phaseRowH = hasPhaseShift ? 14 : 0;
+    const phaseRowGap = hasPhaseShift ? 4 : 0;
+    const abilityStartY = pendingStartY + phaseRowH + phaseRowGap;
+    const abilityAreaH = Math.max(0, y + panelH - abilityStartY - 8);
+    const maxAbilityRows = abilityAreaH >= 36 ? 2 : 1;
+    const rowH = maxAbilityRows ? Math.max(18, Math.floor(abilityAreaH / maxAbilityRows)) : 0;
+    const { pendingList, pendingRows, extraCount } = this._getBossBarMetrics(boss, { maxRows: maxAbilityRows, rowH });
+    const def = boss ? this._enemyDefs?.[boss.defId] : null;
+    const baseColor = def?.color || "#6aa4ff";
+    const parsed = parseHexColor(baseColor);
+    let accentMain = baseColor;
+    let accentBright = baseColor;
+    if (parsed) {
+      const hsl = rgbToHsl(parsed.r, parsed.g, parsed.b);
+      accentMain = rgbToCss(hslToRgb(hsl.h, clamp(hsl.s * 0.7, 0.2, 0.6), clamp(hsl.l + 0.06, 0.34, 0.7)));
+      accentBright = rgbToCss(hslToRgb(hsl.h, clamp(hsl.s * 0.85, 0.25, 0.7), clamp(hsl.l + 0.18, 0.42, 0.86)));
+    }
 
     ctx.save();
-    ctx.globalAlpha = 0.95;
-    roundRect(ctx, x - 2, y - 2, barW + 4, barH + 22 + extraH, 10);
-    ctx.fillStyle = "rgba(8,10,18,0.55)";
+    ctx.globalAlpha = 0.98;
+    ctx.shadowColor = "rgba(0,0,0,0.35)";
+    ctx.shadowBlur = 12;
+    ctx.shadowOffsetY = 4;
+    roundRect(ctx, x - 4, y - 4, barW + 8, panelH, 12);
+    const panelGrad = ctx.createLinearGradient(0, y - 4, 0, y - 4 + panelH);
+    panelGrad.addColorStop(0, "rgba(18,22,36,0.92)");
+    panelGrad.addColorStop(1, "rgba(8,11,20,0.9)");
+    ctx.fillStyle = panelGrad;
     ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
     ctx.strokeStyle = "rgba(231,236,255,0.12)";
     ctx.lineWidth = 1;
     ctx.stroke();
-
-    const pct = boss.maxHp > 0 ? clamp(boss.hp / boss.maxHp, 0, 1) : 0;
-    roundRect(ctx, x, y + 16, barW, barH, 8);
-    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    ctx.fillStyle = withAlpha(accentMain, 0.65);
+    roundRect(ctx, x - 1, y + 6, 3, panelH - 12, 3);
     ctx.fill();
-    roundRect(ctx, x, y + 16, barW * pct, barH, 8);
-    ctx.fillStyle = "rgba(251,113,133,0.85)";
-    ctx.fill();
+    ctx.globalAlpha = 1;
 
-    // Shield overlay (if any)
-    if (boss.shield > 0) {
-      const shieldPct = clamp(boss.shield / Math.max(1, boss.maxHp * 0.25), 0, 1);
-      roundRect(ctx, x, y + 16, barW * shieldPct, 5, 6);
-      ctx.fillStyle = "rgba(96,165,250,0.85)";
+    if (hasBoss) {
+      const pct = boss.maxHp > 0 ? clamp(boss.hp / boss.maxHp, 0, 1) : 0;
+      roundRect(ctx, innerX, barY, innerW, barH, 6);
+      ctx.fillStyle = "rgba(255,255,255,0.07)";
       ctx.fill();
-    }
+      roundRect(ctx, innerX, barY, innerW * pct, barH, 6);
+      const hpGrad = ctx.createLinearGradient(innerX, barY, innerX + innerW, barY);
+      hpGrad.addColorStop(0, withAlpha(accentBright, 0.95));
+      hpGrad.addColorStop(1, withAlpha(accentMain, 0.85));
+      ctx.fillStyle = hpGrad;
+      ctx.fill();
+      ctx.save();
+      ctx.globalAlpha = 0.28;
+      ctx.fillStyle = "rgba(255,255,255,0.6)";
+      roundRect(ctx, innerX + 2, barY + 2, Math.max(0, innerW * pct - 4), Math.max(2, barH * 0.45), 5);
+      ctx.fill();
+      ctx.restore();
 
-    ctx.fillStyle = "rgba(231,236,255,0.9)";
-    ctx.font = "12px ui-sans-serif, system-ui";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "middle";
-    const phaseLabel = boss.phase && boss.phase > 1 ? ` — PHASE ${boss.phase}` : "";
-    ctx.fillText(`${boss.name} — BOSS${phaseLabel}`, x + 8, y + 8);
+      // Shield overlay (if any)
+      if (boss.shield > 0) {
+        const shieldPct = clamp(boss.shield / Math.max(1, boss.maxHp * 0.25), 0, 1);
+        roundRect(ctx, innerX, barY + barH - 3, innerW * shieldPct, 3, 4);
+        ctx.fillStyle = "rgba(96,165,250,0.92)";
+        ctx.fill();
+      }
 
-    ctx.textAlign = "right";
-    ctx.fillText(`${Math.round(boss.hp)}/${boss.maxHp}`, x + barW - 8, y + 8);
-
-    if (pendingRows) {
-      ctx.font = "11px ui-sans-serif, system-ui";
+      ctx.fillStyle = "rgba(231,236,255,0.92)";
+      ctx.font = "600 12px ui-sans-serif, system-ui";
       ctx.textAlign = "left";
-      ctx.textBaseline = "top";
-      for (let i = 0; i < pendingRows; i++) {
-        const pending = pendingList[i];
-        const castPct = pending?.total > 0 ? clamp(1 - pending.remaining / pending.total, 0, 1) : 0;
-        const cy = y + 38 + i * rowH;
-        roundRect(ctx, x, cy, barW, 8, 6);
-        ctx.fillStyle = "rgba(0,0,0,0.35)";
-        ctx.fill();
-        roundRect(ctx, x, cy, barW * castPct, 8, 6);
-        ctx.fillStyle = i === 0 ? "rgba(251,191,36,0.85)" : "rgba(148,163,184,0.75)";
-        ctx.fill();
+      ctx.textBaseline = "middle";
+      const phaseLabel = boss.phase && boss.phase > 1 ? ` — PHASE ${boss.phase}` : "";
+      const badgeText = "BOSS";
+      const badgePad = 6;
+      const badgeW = Math.ceil(ctx.measureText(badgeText).width + badgePad * 2);
+      const badgeH = 14;
+      roundRect(ctx, innerX, headerMid - badgeH / 2, badgeW, badgeH, badgeH / 2);
+      ctx.fillStyle = withAlpha(accentMain, 0.9);
+      ctx.fill();
+      ctx.fillStyle = "rgba(10,12,18,0.9)";
+      ctx.fillText(badgeText, innerX + badgePad, headerMid);
 
-        ctx.fillStyle = "rgba(231,236,255,0.85)";
-        const label = pending?.label || "Ability";
-        const prefix = i === 0 ? "Casting" : "Queued";
-        const labelText = truncateText(ctx, `${prefix}: ${label}`, barW - 12);
-        ctx.fillText(labelText, x + 6, cy + 10);
-        const desc = pending?.desc;
-        if (desc) {
-          ctx.save();
-          ctx.font = "10px ui-sans-serif, system-ui";
-          ctx.fillStyle = "rgba(148,163,184,0.9)";
-          const descText = truncateText(ctx, desc, barW - 12);
-          ctx.fillText(descText, x + 6, cy + 26);
-          ctx.restore();
+      const hpText = `${Math.round(boss.hp)}/${boss.maxHp}`;
+      ctx.textAlign = "right";
+      ctx.fillStyle = "rgba(231,236,255,0.86)";
+      ctx.fillText(hpText, innerX + innerW, headerMid);
+      const hpWidth = ctx.measureText(hpText).width;
+      ctx.textAlign = "left";
+      ctx.fillStyle = "rgba(231,236,255,0.95)";
+      const nameMax = Math.max(40, innerW - badgeW - hpWidth - 20);
+      const nameText = truncateText(ctx, `${boss.name}${phaseLabel}`, nameMax);
+      ctx.fillText(nameText, innerX + badgeW + 10, headerMid);
+
+      if (hasPhaseShift && phaseRowH > 0) {
+        const shift = boss._phase2Transition;
+        const shiftPct = shift?.total > 0 ? clamp(1 - shift.remaining / shift.total, 0, 1) : 1;
+        const remaining = Math.max(0, shift?.remaining ?? 0);
+        ctx.font = "10px ui-sans-serif, system-ui";
+        ctx.textAlign = "left";
+        ctx.textBaseline = "top";
+        const shiftLabel = `Phase Shift: Rewinding (${remaining.toFixed(1)}s)`;
+        ctx.fillStyle = "rgba(191,219,254,0.9)";
+        ctx.fillText(truncateText(ctx, shiftLabel, innerW - 6), innerX, pendingStartY);
+        const barLineY = pendingStartY + phaseRowH - 4;
+        ctx.fillStyle = "rgba(231,236,255,0.12)";
+        ctx.fillRect(innerX, barLineY, innerW, 2);
+        ctx.fillStyle = "rgba(56,189,248,0.92)";
+        ctx.fillRect(innerX, barLineY, innerW * shiftPct, 2);
+        ctx.textBaseline = "middle";
+      }
+
+      if (pendingRows && rowH > 0) {
+        ctx.font = "10px ui-sans-serif, system-ui";
+        ctx.textAlign = "left";
+        ctx.textBaseline = "top";
+        for (let i = 0; i < pendingRows; i++) {
+          const pending = pendingList[i];
+          const castPct = pending?.total > 0 ? clamp(1 - pending.remaining / pending.total, 0, 1) : 0;
+          const cy = abilityStartY + i * rowH;
+          const label = pending?.label || "Ability";
+          const prefix = i === 0 ? "Casting" : "Queued";
+          const labelText = truncateText(ctx, `${prefix}: ${label}`, innerW - 6);
+          ctx.fillStyle = "rgba(231,236,255,0.78)";
+          ctx.fillText(labelText, innerX, cy);
+          const barLineY = cy + rowH - 5;
+          ctx.fillStyle = "rgba(231,236,255,0.12)";
+          ctx.fillRect(innerX, barLineY, innerW, 2);
+          ctx.fillStyle = i === 0 ? "rgba(251,191,36,0.92)" : withAlpha(accentMain, 0.85);
+          ctx.fillRect(innerX, barLineY, innerW * castPct, 2);
+        }
+        const extraY = abilityStartY + pendingRows * rowH;
+        if (extraCount > 0 && extraY + 10 < y + panelH - 2) {
+          ctx.fillStyle = "rgba(148,163,184,0.7)";
+          ctx.fillText(`+${extraCount} queued`, innerX, extraY);
+        }
+        ctx.textBaseline = "middle";
+      }
+    } else {
+      const waveNumber = Number.isFinite(status?.wave) ? status.wave : Number.isFinite(state?.waveNumber) ? state.waveNumber : 0;
+      const waveGoal = status?.waveGoal ?? mode?.totalWaves ?? null;
+      const waveActive = Boolean(status?.inWave ?? state?.inWave);
+      const currentWave = waveNumber + (waveActive ? 1 : 0);
+      const paused = Boolean(status?.paused ?? state?.paused);
+      const auto = Boolean(status?.auto ?? state?.autoNextWave);
+      const modifiersCount = status?.modifiersCount ?? 0;
+      const mapName = map?.name || "Unknown Map";
+      const modeName = mode?.name || "Run";
+
+      ctx.font = "600 12px ui-sans-serif, system-ui";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "rgba(231,236,255,0.92)";
+      const rightWidth = ctx.measureText(modeName).width;
+      const leftMax = Math.max(60, innerW - rightWidth - 12);
+      ctx.fillText(truncateText(ctx, mapName, leftMax), innerX, headerMid);
+      ctx.textAlign = "right";
+      ctx.fillStyle = "rgba(231,236,255,0.78)";
+      ctx.fillText(modeName, innerX + innerW, headerMid);
+
+      const threat = status?.threat ?? null;
+      const spawnPending = Boolean(status?.spawnPending);
+      const spawnRemaining = Number.isFinite(status?.spawnRemaining) ? status.spawnRemaining : null;
+      const spawnTotal = Number.isFinite(status?.spawnTotal) ? status.spawnTotal : null;
+      const bossEvery = mode?.bossEvery ?? null;
+
+      let waveProgress = 0;
+      if (waveActive) {
+        if (spawnTotal && spawnTotal > 0) {
+          waveProgress = clamp(1 - (spawnRemaining ?? 0) / spawnTotal, 0, 1);
+        } else {
+          waveProgress = spawnPending ? 0 : 1;
         }
       }
-      if (extraCount > 0) {
-        ctx.fillStyle = "rgba(148,163,184,0.85)";
-        ctx.fillText(`+${extraCount} more queued`, x + 6, y + 38 + pendingRows * rowH);
+
+      let progress = 0;
+      let progressLabel = "";
+      const waveProgressIndex = waveActive ? currentWave - 1 + waveProgress : currentWave;
+      if (waveGoal) {
+        progress = clamp(waveProgressIndex / waveGoal, 0, 1);
+        progressLabel = `Run ${Math.round(progress * 100)}%`;
+      } else if (bossEvery && bossEvery > 0) {
+        const cycleProgress = (waveProgressIndex % bossEvery) / bossEvery;
+        progress = clamp(cycleProgress, 0, 1);
+        const mod = currentWave % bossEvery;
+        const wavesUntilBoss = mod === 0 ? 0 : bossEvery - mod;
+        progressLabel = wavesUntilBoss === 0 ? "Boss now" : `Boss in ${wavesUntilBoss}w`;
+      } else {
+        progress = waveProgress;
+        progressLabel = waveActive ? `Wave ${Math.round(progress * 100)}%` : "";
+      }
+
+      ctx.fillStyle = "rgba(255,255,255,0.08)";
+      roundRect(ctx, innerX, barY, innerW, barH, 6);
+      ctx.fill();
+      if (progress > 0) {
+        roundRect(ctx, innerX, barY, innerW * progress, barH, 6);
+        const progGrad = ctx.createLinearGradient(innerX, barY, innerX + innerW, barY);
+        progGrad.addColorStop(0, withAlpha(accentBright, 0.9));
+        progGrad.addColorStop(1, withAlpha(accentMain, 0.8));
+        ctx.fillStyle = progGrad;
+        ctx.fill();
+      }
+      if (progress > 0 && progress < 1) {
+        const notchX = innerX + innerW * progress;
+        ctx.strokeStyle = "rgba(231,236,255,0.65)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(notchX, barY + 2);
+        ctx.lineTo(notchX, barY + barH - 2);
+        ctx.stroke();
+      }
+
+      const waveLabel = waveGoal ? `Wave ${currentWave} / ${waveGoal}` : `Wave ${currentWave}`;
+      let statusText = paused ? "Paused" : waveActive ? "In Wave" : "Intermission";
+      if (spawnPending && spawnRemaining != null) {
+        const display = spawnRemaining >= 10 ? Math.ceil(spawnRemaining) : Math.max(0.1, Math.ceil(spawnRemaining * 10) / 10);
+        statusText = `Spawning (${display}s)`;
+      } else if (waveActive && !spawnPending) {
+        statusText = "Spawns complete";
+      }
+      const leftLine = `${waveLabel} · ${statusText}`;
+      const rightLine = `${auto ? "Auto: On" : "Auto: Off"}${progressLabel ? ` · ${progressLabel}` : ""}`;
+
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+      ctx.font = "10px ui-sans-serif, system-ui";
+      ctx.fillStyle = "rgba(231,236,255,0.8)";
+      const rightLineWidth = ctx.measureText(rightLine).width;
+      const leftLineMax = Math.max(60, innerW - rightLineWidth - 10);
+      ctx.fillText(truncateText(ctx, leftLine, leftLineMax), innerX, abilityStartY);
+      ctx.textAlign = "right";
+      ctx.fillStyle = "rgba(148,163,184,0.75)";
+      ctx.fillText(rightLine, innerX + innerW, abilityStartY);
+      const line2Y = abilityStartY + 16;
+      if (line2Y + 10 < y + panelH - 2) {
+        ctx.textAlign = "left";
+        ctx.textBaseline = "top";
+        ctx.fillStyle = "rgba(148,163,184,0.78)";
+        const threatText = `Threat: ${threat == null ? "-" : threat}`;
+        ctx.fillText(truncateText(ctx, threatText, innerW - 6), innerX, line2Y);
+        ctx.textAlign = "right";
+        const modsText = `Mods: ${modifiersCount}`;
+        ctx.fillText(truncateText(ctx, modsText, innerW - 6), innerX + innerW, line2Y);
       }
       ctx.textBaseline = "middle";
     }

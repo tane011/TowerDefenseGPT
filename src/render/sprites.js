@@ -368,6 +368,36 @@ function towerSprite(defId, color) {
     ctx.moveTo(cx - 8, cy + 8);
     ctx.lineTo(cx + 6, cy + 2);
     ctx.stroke();
+  } else if (defId === "judicator") {
+    ctx.strokeStyle = "rgba(251,191,36,0.95)";
+    ctx.lineWidth = 2.6;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - 12);
+    ctx.lineTo(cx, cy + 10);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx - 10, cy - 4);
+    ctx.lineTo(cx + 10, cy - 4);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(231,236,255,0.8)";
+    ctx.beginPath();
+    ctx.arc(cx - 8, cy + 2, 3, 0, Math.PI * 2);
+    ctx.arc(cx + 8, cy + 2, 3, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (defId === "riftpiercer") {
+    ctx.strokeStyle = "rgba(56,189,248,0.95)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(cx - 12, cy + 10);
+    ctx.lineTo(cx + 10, cy - 10);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(231,236,255,0.85)";
+    ctx.beginPath();
+    ctx.moveTo(cx + 6, cy - 12);
+    ctx.lineTo(cx + 14, cy - 8);
+    ctx.lineTo(cx + 6, cy - 4);
+    ctx.closePath();
+    ctx.fill();
   } else if (defId === "obliterator") {
     ctx.strokeStyle = "rgba(231,236,255,0.92)";
     ctx.lineWidth = 3;
@@ -907,4 +937,10 @@ export function buildSprites({ towerDefs, enemyDefs }) {
   for (const [id, def] of Object.entries(towerDefs)) towers[id] = towerSprite(id, def.color || "#e7ecff");
   for (const [id, def] of Object.entries(enemyDefs)) enemies[id] = enemySprite(id, def.color || "#fbbf24");
   return { towers, enemies };
+}
+
+export function buildTowerSprites(towerDefs = {}) {
+  const towers = {};
+  for (const [id, def] of Object.entries(towerDefs)) towers[id] = towerSprite(id, def.color || "#e7ecff");
+  return towers;
 }

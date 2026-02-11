@@ -3,8 +3,10 @@ import { MapInstance } from "../world/Map.js";
 import { Enemy } from "../world/Enemy.js";
 import { Tower } from "../world/Tower.js";
 import { Ally } from "../world/Ally.js";
+import { Projectile } from "../world/Projectile.js";
 import { aggregateModifiers, applyEnemyModifiers } from "./modifiers.js";
 import { clamp } from "../core/math.js";
+import { ensureNextId } from "../core/ids.js";
 import { AuraSystem } from "../systems/AuraSystem.js";
 import { EnemySystem } from "../systems/EnemySystem.js";
 import { AllySystem } from "../systems/AllySystem.js";
@@ -18,14 +20,38 @@ function tileKey(tx, ty) {
   return `${tx},${ty}`;
 }
 
+function resolveMapModePair(mapDefs, modeDefs, mapId, modeId) {
+  if (!mapDefs?.length || !modeDefs?.length) {
+    return { mapId: mapDefs?.[0]?.id ?? mapId ?? null, modeId: modeDefs?.[0]?.id ?? modeId ?? null };
+  }
+  const mapById = new Map(mapDefs.map((m) => [m.id, m]));
+  const modeById = new Map(modeDefs.map((m) => [m.id, m]));
+  const mapIds = new Set(mapDefs.map((m) => m.id));
+  const currentMapId = mapById.has(mapId) ? mapId : mapDefs[0]?.id ?? null;
+  const currentModeId = modeById.has(modeId) ? modeId : modeDefs[0]?.id ?? null;
+  const currentMode = modeById.get(currentModeId);
+  const required = currentMode?.requiredMap && mapIds.has(currentMode.requiredMap) ? currentMode.requiredMap : "";
+  if (required) return { mapId: required, modeId: currentMode.id };
+  return { mapId: currentMapId, modeId: currentMode?.id ?? currentModeId };
+}
+
+function parseIdNumber(id) {
+  if (typeof id !== "string") return null;
+  const match = /_(\d+)$/.exec(id);
+  if (!match) return null;
+  const value = Number.parseInt(match[1], 10);
+  return Number.isFinite(value) ? value : null;
+}
+
 export class Game {
-  constructor({ canvas, input, data, rng, state, ui }) {
+  constructor({ canvas, bossCanvas, input, data, rng, state, ui, unlocks }) {
     this._canvas = canvas;
     this._input = input;
     this._data = data;
     this._rng = rng;
     this.state = state;
     this.ui = ui;
+    this._unlocks = unlocks;
 
     this.map = null;
     this.pathInfos = [];
@@ -33,6 +59,12 @@ export class Game {
     this.world = { towers: [], enemies: [], allies: [], projectiles: [], vfx: [], modifiers: null };
     this._towerByTile = new Map();
     this._seenEnemyIds = new Set();
+    this._upgradeParentById = new Map();
+    for (const def of Object.values(this._data.towerDefs || {})) {
+      for (const up of def?.upgrades || []) {
+        if (up?.id) this._upgradeParentById.set(up.id, def);
+      }
+    }
 
     this._uiRenderState = { ghost: null };
     this.modifiers = [];
@@ -40,6 +72,7 @@ export class Game {
 
     this.renderer = new Renderer({
       canvas,
+      bossCanvas,
       towerDefs: data.towerDefs,
       enemyDefs: data.enemyDefs,
     });
@@ -61,6 +94,7 @@ export class Game {
       log: (msg) => this.log(msg),
       onFinalBossDeath: (enemy, duration) => this._handleFinalBossDeath(enemy, duration),
       onBossLeak: (enemy) => this.bossReachedBase(enemy),
+      onEnemyKilled: (enemy) => this._recordRunKill(enemy),
     });
     this._waveSystem = new WaveSystem({
       createWave: (waveNumber) => {
@@ -78,10 +112,26 @@ export class Game {
     });
   }
 
-  newRun(mapId, modeId, modifierIds = []) {
-    const mapDef = this._data.mapDefs.find((m) => m.id === mapId) ?? this._data.mapDefs[0];
-    const modeDef =
-      (this._data.modeDefs || []).find((m) => m.id === modeId) ?? (this._data.modeDefs || [])[0] ?? { id: "endless", name: "Endless" };
+  newRun(mapId, modeId, modifierIds = [], options = {}) {
+    const { ignoreUnlocks = false, silent = false } = options || {};
+    const baseMapDefs = this._data.mapDefs || [];
+    const baseModeDefs = this._data.modeDefs || [];
+    const unlockedMaps = ignoreUnlocks
+      ? baseMapDefs
+      : this._unlocks?.isMapUnlocked
+        ? baseMapDefs.filter((m) => this._unlocks.isMapUnlocked(m.id))
+        : baseMapDefs;
+    const unlockedModes = ignoreUnlocks
+      ? baseModeDefs
+      : this._unlocks?.isModeUnlocked
+        ? baseModeDefs.filter((m) => this._unlocks.isModeUnlocked(m.id))
+        : baseModeDefs;
+    const mapDefs = unlockedMaps.length ? unlockedMaps : baseMapDefs;
+    const modeDefs = unlockedModes.length ? unlockedModes : baseModeDefs;
+    const resolved = resolveMapModePair(mapDefs, modeDefs, mapId, modeId);
+    let mapDef = mapDefs.find((m) => m.id === resolved.mapId) ?? mapDefs[0];
+    let modeDef =
+      modeDefs.find((m) => m.id === resolved.modeId) ?? modeDefs[0] ?? { id: "endless", name: "Endless" };
     const modifiers = (modifierIds || [])
       .map((id) => (this._data.modifierDefs || []).find((m) => m.id === id))
       .filter(Boolean);
@@ -120,10 +170,41 @@ export class Game {
     this.state.inWave = false;
     this.state.time = 0;
     this.state.pendingVictory = null;
+    this._resetRunStats();
 
     const modLabel = modifiers.length ? ` | Mods: ${modifiers.map((m) => m.name).join(", ")}` : "";
-    this.log(`New run: ${this.map.name} — ${modeDef?.name || "Endless"}${modLabel}`);
+    if (!silent) {
+      this.log(`New run: ${this.map.name} — ${modeDef?.name || "Endless"}${modLabel}`);
+    }
     this._syncUi();
+  }
+
+  _resetRunStats() {
+    this.state.runStats = {
+      damageDealt: 0,
+      kills: 0,
+    };
+  }
+
+  _recordRunDamage(amount) {
+    if (!Number.isFinite(amount) || amount <= 0) return;
+    if (!this.state.runStats) this._resetRunStats();
+    this.state.runStats.damageDealt = (this.state.runStats.damageDealt || 0) + amount;
+  }
+
+  _recordRunKill() {
+    if (!this.state.runStats) this._resetRunStats();
+    this.state.runStats.kills = (this.state.runStats.kills || 0) + 1;
+  }
+
+  _attachTowerDamageTracker(tower) {
+    if (!tower || tower._tracksRunDamage) return;
+    const original = typeof tower.recordDamage === "function" ? tower.recordDamage.bind(tower) : null;
+    tower.recordDamage = (amount) => {
+      original?.(amount);
+      this._recordRunDamage(amount);
+    };
+    tower._tracksRunDamage = true;
   }
 
   log(message) {
@@ -142,6 +223,7 @@ export class Game {
   }
 
   damageBase(amount) {
+    if (this.state.debugInvincible) return;
     this.state.lives -= Math.max(0, Math.round(amount));
     if (this.state.lives <= 0) {
       this.state.lives = 0;
@@ -151,6 +233,10 @@ export class Game {
 
   bossReachedBase(enemy) {
     if (this.state.mode !== "playing") return;
+    if (this.state.debugInvincible) {
+      this.log?.("Admin: Base is invincible.");
+      return;
+    }
     this.state.lives = 0;
     const name = enemy?.name || "Boss";
     this.log?.(`${name} breached the base!`);
@@ -199,7 +285,15 @@ export class Game {
     const def = this._data.enemyDefs[enemyId];
     if (!def) throw new Error(`Unknown enemyId: ${enemyId}`);
     const idx = Math.max(0, Math.min(this.pathInfos.length - 1, pathIndex));
-    const enemy = new Enemy(def, this.pathInfos[idx], { ...opts, pathIndex: idx });
+    const enemy = new Enemy(def, this.pathInfos[idx], {
+      ...opts,
+      pathIndex: idx,
+      reportDamage: (amount, towerId) => {
+        if (!towerId || !Number.isFinite(amount) || amount <= 0) return;
+        const tower = this.world.towers.find((t) => t.id === towerId);
+        tower?.recordDamage?.(amount);
+      },
+    });
     enemy.pathIndex = idx;
     applyEnemyModifiers(enemy, this.modifierState);
     if (this._seenEnemyIds) this._seenEnemyIds.add(enemyId);
@@ -228,6 +322,38 @@ export class Game {
     const value = Number.isFinite(amount) ? amount : 0;
     this.state.lives = Math.max(1, Math.round(value));
     this.log?.(`Admin: Lives set to ${this.state.lives}`);
+  }
+
+  adminSetTimeScale(scale = 1) {
+    const value = Number.parseFloat(scale);
+    if (!Number.isFinite(value)) return false;
+    const clamped = clamp(value, 0.25, 4);
+    this.state.timeScale = clamped;
+    this.log?.(`Admin: Time scale ${clamped}x`);
+    return true;
+  }
+
+  adminSetInvincible(enabled) {
+    this.state.debugInvincible = Boolean(enabled);
+    this.log?.(`Admin: Base invincible ${this.state.debugInvincible ? "ON" : "OFF"}.`);
+  }
+
+  adminSetWave(nextWave = 1, { clearEnemies = true, clearProjectiles = true } = {}) {
+    if (this.state.mode !== "playing") return false;
+    const target = Math.max(1, Math.round(nextWave));
+    const maxWave = this.modeDef?.totalWaves ?? null;
+    const clamped = maxWave ? Math.min(target, maxWave) : target;
+    this._waveSystem.reset();
+    this.state.inWave = false;
+    this.state.waveNumber = Math.max(0, clamped - 1);
+    this.state.pendingVictory = null;
+    if (clearEnemies) this.world.enemies = [];
+    if (clearProjectiles) {
+      this.world.projectiles = [];
+      this.world.vfx = [];
+    }
+    this.log?.(`Admin: Next wave set to ${clamped}.`);
+    return true;
   }
 
   adminSpawnEnemy(enemyId, count = 1, pathIndex = null, modConfig = null) {
@@ -317,6 +443,18 @@ export class Game {
     this.log?.("Admin: Cleared enemies.");
   }
 
+  adminClearAllies() {
+    this.world.allies = [];
+    this.log?.("Admin: Cleared allies.");
+  }
+
+  adminClearTowers() {
+    this.world.towers = [];
+    this._towerByTile = new Map();
+    this.state.selectedTowerId = null;
+    this.log?.("Admin: Cleared towers.");
+  }
+
   adminClearProjectiles() {
     this.world.projectiles = [];
     this.world.vfx = [];
@@ -332,6 +470,92 @@ export class Game {
       a.cooldown = 0;
     }
     this.log?.("Admin: Reset tower/ally cooldowns.");
+  }
+
+  adminClearAll() {
+    this.world.enemies = [];
+    this.world.allies = [];
+    this.world.projectiles = [];
+    this.world.vfx = [];
+    this.world.towers = [];
+    this._towerByTile = new Map();
+    this.state.selectedTowerId = null;
+    this.log?.("Admin: Cleared all entities.");
+  }
+
+  adminForceCompleteWave({ clearEnemies = true } = {}) {
+    if (this.state.mode !== "playing") return false;
+    if (!this._waveSystem.active) {
+      this.log?.("Admin: No active wave to complete.");
+      return false;
+    }
+    const waveNum = this.state.waveNumber + 1;
+    const bonus = this._waveSystem.waveMeta?.rewardBonus ?? 0;
+    this._waveSystem.active = false;
+    this._waveSystem._events = [];
+    this._waveSystem._time = 0;
+    this._waveSystem._autoDelay = 0.75;
+    if (clearEnemies) this.world.enemies = [];
+    this.state.inWave = false;
+    this.state.waveNumber = waveNum;
+    if (bonus > 0) this.awardMoney(bonus);
+    this.log?.(`Admin: Wave ${waveNum} completed (+${bonus}g).`);
+    if (this.state.settings?.pauseOnWaveEnd) {
+      this.state.paused = true;
+      this.log?.("Paused: wave cleared.");
+    }
+    const mode = this.modeDef;
+    if (mode?.totalWaves && waveNum >= mode.totalWaves) {
+      if (!this.state.pendingVictory) this.winRun(mode);
+    }
+    return true;
+  }
+
+  adminSkipBossWave({ clearEnemies = true } = {}) {
+    if (this.state.mode !== "playing") return false;
+    if (!this._waveSystem.active) {
+      this.log?.("Admin: No active wave to skip.");
+      return false;
+    }
+    if (!this._waveSystem.waveMeta?.hasBoss) {
+      this.log?.("Admin: Current wave is not a boss wave.");
+      return false;
+    }
+    return this.adminForceCompleteWave({ clearEnemies });
+  }
+
+  adminMaxSelectedTower() {
+    const tower = this.getSelectedTower();
+    if (!tower) {
+      this.log?.("Admin: No tower selected.");
+      return false;
+    }
+    const def = this._data.towerDefs[tower.defId];
+    if (!def) return false;
+    const upgrades = [...(def.upgrades || [])];
+    upgrades.sort((a, b) => (a.tier ?? 0) - (b.tier ?? 0) || this.getUpgradeCost(a) - this.getUpgradeCost(b));
+    let applied = 0;
+    let progress = true;
+    let safety = 0;
+    while (progress && safety < 100) {
+      progress = false;
+      safety += 1;
+      for (const up of upgrades) {
+        if (tower.appliedUpgrades.has(up.id)) continue;
+        if ((up.requires || []).some((r) => !tower.appliedUpgrades.has(r))) continue;
+        if ((up.excludes || []).some((x) => tower.appliedUpgrades.has(x))) continue;
+        tower.applyUpgrade(up);
+        tower.totalCost = (tower.totalCost ?? 0) + this.getUpgradeCost(up);
+        applied += 1;
+        progress = true;
+      }
+    }
+    if (!applied) {
+      this.log?.(`Admin: ${def.name} already at max or no upgrades available.`);
+      return false;
+    }
+    this.log?.(`Admin: Maxed ${def.name} (+${applied} upgrades).`);
+    return true;
   }
 
   _buildEnemyAdminMod(config) {
@@ -508,11 +732,32 @@ export class Game {
     return Math.max(0, Math.round(base * mul * balanceMul * endgameMul));
   }
 
+  getTowerBaseStats(def) {
+    if (!def) return null;
+    if (!this._previewTowers) this._previewTowers = new Map();
+    let preview = this._previewTowers.get(def.id);
+    if (!preview) {
+      preview = new Tower(def, 0, 0, { x: 0, y: 0 });
+      this._previewTowers.set(def.id, preview);
+    }
+    preview.appliedUpgrades.clear();
+    preview.resetBuffs();
+    preview.targetingOverride = null;
+    return preview.computeStats(def, { modifiers: this.modifierState });
+  }
+
   getUpgradeCost(upgrade) {
     const base = upgrade?.cost ?? 0;
     const mul = this.modifierState?.tower?.upgradeCostMul ?? 1;
-    const balanceMul = 1.45;
-    return Math.max(0, Math.round(base * mul * balanceMul));
+    const balanceMul = 1.05;
+    const tier = upgrade?.tier ?? 1;
+    const tierMul = tier <= 1 ? 0.6 : tier === 2 ? 0.8 : tier === 3 ? 0.9 : 1.0;
+    const parent = this._upgradeParentById?.get(upgrade?.id);
+    let endgameMul = 1;
+    if (parent?.endgame) {
+      endgameMul = tier <= 1 ? 1.4 : tier === 2 ? 1.9 : tier === 3 ? 2.4 : 3.0;
+    }
+    return Math.max(0, Math.round(base * mul * balanceMul * tierMul * endgameMul));
   }
 
   placeTower(towerId, tx, ty) {
@@ -520,16 +765,29 @@ export class Game {
     if (this._towerByTile.has(tileKey(tx, ty))) return { ok: false, reason: "Occupied" };
     const def = this._data.towerDefs[towerId];
     if (!def) return { ok: false, reason: "Unknown tower" };
+    if (this._unlocks?.isTowerUnlocked && !this._unlocks.isTowerUnlocked(towerId)) {
+      this.log?.(`Locked: ${def.name}. Unlock it in the shop.`);
+      return { ok: false, reason: "Locked" };
+    }
     const cost = this.getTowerCost(def);
     if (this.state.money < cost) return { ok: false, reason: "Not enough money" };
 
     const pos = this.map.tileToWorldCenter(tx, ty);
     const tower = new Tower(def, tx, ty, pos);
+    tower.totalCost = cost;
+    this._attachTowerDamageTracker(tower);
     this.world.towers.push(tower);
     this._towerByTile.set(tileKey(tx, ty), tower);
 
     this.state.money -= cost;
-    this.state.selectedTowerId = tower.id;
+    if (this.state.settings?.autoSelectBuilt !== false) {
+      this.state.selectedTowerId = tower.id;
+    } else {
+      this.state.selectedTowerId = null;
+    }
+    if (this.state.settings?.keepBuildMode === false) {
+      this.state.buildTowerId = null;
+    }
     this.log(`Built ${def.name} (-${cost}g).`);
     return { ok: true, tower };
   }
@@ -576,6 +834,7 @@ export class Game {
       if (tower.appliedUpgrades.has(ex)) return { ok: false, reason: "Conflicts with owned upgrade" };
     }
     tower.applyUpgrade(up);
+    tower.totalCost = (tower.totalCost ?? 0) + cost;
     this.state.money -= cost;
     this.log(`Upgrade: ${up.name} (-${cost}g).`);
     return { ok: true };
@@ -603,7 +862,13 @@ export class Game {
     this.log(this.state.autoNextWave ? "Auto waves: ON" : "Auto waves: OFF");
   }
 
-  step(dt) {
+  _getTimeScale() {
+    const raw = Number.parseFloat(this.state.timeScale);
+    if (!Number.isFinite(raw)) return 1;
+    return clamp(raw, 0.25, 4);
+  }
+
+  step(dt, options = {}) {
     // UI + input always runs (even while paused), but simulation is gated.
     this._handleInput();
 
@@ -612,20 +877,23 @@ export class Game {
       return;
     }
 
+    const timeScale = options.ignoreTimeScale ? 1 : this._getTimeScale();
+    const scaledDt = dt * timeScale;
+
     if (!this.state.paused) {
-      this.state.time += dt;
-      this._waveSystem.update(dt);
+      this.state.time += scaledDt;
+      this._waveSystem.update(scaledDt);
       this._auraSystem.update(this.world);
-      this._towerSystem.update(dt, this.world);
-      this._allySystem.update(dt, this.world);
-      this._projectileSystem.update(dt, this.world);
-      this._enemySystem.update(dt, this.world);
-      this._vfxSystem.update(dt, this.world);
+      this._towerSystem.update(scaledDt, this.world);
+      this._allySystem.update(scaledDt, this.world);
+      this._projectileSystem.update(scaledDt, this.world);
+      this._enemySystem.update(scaledDt, this.world);
+      this._vfxSystem.update(scaledDt, this.world);
     }
 
     this.state.inWave = this._waveSystem.active;
     if (this.state.pendingVictory) {
-      this.state.pendingVictory.remaining = Math.max(0, this.state.pendingVictory.remaining - dt);
+      this.state.pendingVictory.remaining = Math.max(0, this.state.pendingVictory.remaining - scaledDt);
       if (this.state.pendingVictory.remaining <= 0 && !this.state.inWave && this.world.enemies.length === 0) {
         const mode = this.state.pendingVictory.mode;
         this.state.pendingVictory = null;
@@ -661,6 +929,7 @@ export class Game {
       this._input.consumeClicks();
       return;
     }
+    if (this._input.consumePressed("KeyC")) this.ui?.toggleCinematicUi?.();
     if (this._input.consumePressed("KeyP")) this.togglePause();
     if (this._input.consumePressed("Space")) this.startNextWave();
     if (this._input.consumePressed("ArrowLeft")) this._cycleBuild(-1);
@@ -675,7 +944,8 @@ export class Game {
       this.state.selectedTowerId = null;
     }
     if (this._input.consumePressed("KeyQ")) this.sellSelectedTower();
-    if (this._input.consumePressed("KeyA")) this._buyFirstAvailableUpgrade();
+    if (this._input.consumePressed("KeyA")) this._buyUpgradeForPath(0);
+    if (this._input.consumePressed("KeyS")) this._buyUpgradeForPath(1);
 
     const clicks = this._input.consumeClicks();
     for (const c of clicks) this._handleClick(c);
@@ -683,7 +953,12 @@ export class Game {
 
   _towerBuildList() {
     // Stable ordering based on insertion order in the data file.
-    return Object.keys(this._data.towerDefs);
+    const ids = Object.keys(this._data.towerDefs);
+    if (this._unlocks?.isTowerUnlocked) {
+      const unlocked = ids.filter((id) => this._unlocks.isTowerUnlocked(id));
+      return unlocked.length ? unlocked : ids;
+    }
+    return ids;
   }
 
   _cycleBuild(dir) {
@@ -702,13 +977,53 @@ export class Game {
     else this.state.buildTowerId = this._towerBuildList()[0] ?? null;
   }
 
-  _buyFirstAvailableUpgrade() {
+  _buyUpgradeForPath(pathIndex) {
     const tower = this.getSelectedTower();
     if (!tower) return;
     const def = this._data.towerDefs[tower.defId];
     if (!def) return;
-    const affordable = (def.upgrades || [])
+    const upgrades = def.upgrades || [];
+    if (!upgrades.length) return;
+
+    const upgradeById = new Map(upgrades.map((u) => [u.id, u]));
+    const tierOf = (u) => (u?.tier ?? 1);
+    const roots = upgrades.filter((u) => tierOf(u) === 1);
+
+    const rootFor = (upgradeId) => {
+      let current = upgradeById.get(upgradeId);
+      const seen = new Set();
+      while (current) {
+        const req = (current.requires || []).find((r) => upgradeById.has(r));
+        if (!req) break;
+        if (seen.has(req)) break;
+        seen.add(req);
+        current = upgradeById.get(req);
+      }
+      return current;
+    };
+
+    const ownedRoots = new Set();
+    for (const id of tower.appliedUpgrades) {
+      const root = rootFor(id);
+      if (root) ownedRoots.add(root.id);
+    }
+
+    // After a path is chosen, both keys should progress the same path.
+    let activeRootId = ownedRoots.size ? [...ownedRoots][0] : null;
+    if (!activeRootId && roots.length) {
+      const fallbackRoot = roots[pathIndex] ?? roots[0];
+      activeRootId = fallbackRoot?.id ?? null;
+    }
+
+    const rootMatches = (up) => {
+      if (!activeRootId) return true;
+      const root = rootFor(up.id);
+      return root?.id === activeRootId;
+    };
+
+    const affordable = upgrades
       .filter((u) => !tower.appliedUpgrades.has(u.id))
+      .filter((u) => rootMatches(u))
       .filter((u) => this.state.money >= this.getUpgradeCost(u))
       .filter((u) => (u.requires || []).every((r) => tower.appliedUpgrades.has(r)))
       .filter((u) => (u.excludes || []).every((x) => !tower.appliedUpgrades.has(x)));
@@ -741,6 +1056,30 @@ export class Game {
 
   _computeUiRenderState() {
     this._uiRenderState.settings = this.state.settings;
+    this._uiRenderState.modeInfo = this.modeDef
+      ? {
+          id: this.modeDef.id,
+          name: this.modeDef.name,
+          bossEvery: this.modeDef.bossEvery ?? null,
+          totalWaves: this.modeDef.totalWaves ?? null,
+          finalBoss: this.modeDef.finalBoss ?? null,
+        }
+      : null;
+    const spawnPending = Boolean(this.state.inWave && this._waveSystem.hasPendingSpawns?.());
+    const spawnRemaining = spawnPending ? this._waveSystem.spawnTimeRemaining?.() : 0;
+    const spawnTotal = this.state.inWave ? this._waveSystem.spawnTimeTotal?.() : 0;
+    this._uiRenderState.status = {
+      wave: this.state.waveNumber,
+      waveGoal: this.modeDef?.totalWaves ?? null,
+      threat: this._waveSystem.waveMeta?.threat ?? null,
+      inWave: this.state.inWave,
+      paused: this.state.paused,
+      auto: this.state.autoNextWave,
+      spawnPending,
+      spawnRemaining,
+      spawnTotal,
+      modifiersCount: this.modifierState?.names?.length ?? 0,
+    };
     const ghost = { x: 0, y: 0, ok: false, range: null };
     if (this.state.mode === "playing" && this.map && this.state.buildTowerId && this._input.mouse.inside) {
       const { tx, ty } = this.map.worldToTile(this._input.mouse.x, this._input.mouse.y);
@@ -763,10 +1102,11 @@ export class Game {
     const bossWave = Boolean(this.state.inWave && this._waveSystem.waveMeta?.hasBoss);
     const spawnPending = Boolean(this.state.inWave && this._waveSystem.hasPendingSpawns?.());
     const spawnRemaining = spawnPending ? this._waveSystem.spawnTimeRemaining?.() : 0;
+    const displayWave = this.state.waveNumber + (this.state.inWave ? 1 : 0);
     this.ui?.setStats?.({
       money: this.state.money,
       lives: this.state.lives,
-      wave: this.state.waveNumber,
+      wave: displayWave,
       inWave: this.state.inWave,
       bossWave,
       spawnPending,
@@ -788,6 +1128,27 @@ export class Game {
 
     this.ui?.setWavePreview?.(this._waveSystem.waveMeta);
     this.ui?.setBuildSelection?.(this.state.buildTowerId);
+    this.ui?.setAdminStats?.({
+      map: this.map?.name ?? "-",
+      mode: this.modeDef?.name ?? "-",
+      wave: displayWave,
+      waveGoal: this.modeDef?.totalWaves ?? null,
+      inWave: this.state.inWave,
+      time: this.state.time,
+      threat: this._waveSystem.waveMeta?.threat ?? null,
+      paused: this.state.paused,
+      auto: this.state.autoNextWave,
+      timeScale: this._getTimeScale(),
+      invincible: this.state.debugInvincible,
+      counts: {
+        towers: this.world.towers.length,
+        enemies: this.world.enemies.length,
+        allies: this.world.allies.length,
+        projectiles: this.world.projectiles.length,
+        vfx: this.world.vfx.length,
+      },
+      seed: this.state.seed,
+    });
   }
 
   // Used by the Playwright-based loop to “see” the game without graphics.
@@ -871,5 +1232,481 @@ export class Game {
       };
     }
     return JSON.stringify(payload);
+  }
+
+  exportRunState() {
+    if (!this.map || !this.modeDef || this.state.mode === "menu") return null;
+    const rngState = this._rng?.state
+      ? { seed: this._rng.state.seed, calls: this._rng.state.calls }
+      : null;
+    const wave = this._waveSystem
+      ? {
+          active: Boolean(this._waveSystem.active),
+          time: this._waveSystem._time ?? 0,
+          events: Array.isArray(this._waveSystem._events)
+            ? this._waveSystem._events.map((ev) => ({
+                t: ev.t,
+                enemyId: ev.enemyId,
+                pathIndex: ev.pathIndex ?? 0,
+                opts: ev.opts ? { ...ev.opts } : null,
+              }))
+            : [],
+          meta: this._waveSystem._waveMeta ? { ...this._waveSystem._waveMeta } : null,
+          spawnTimeTotal: this._waveSystem._spawnTimeTotal ?? 0,
+          autoDelay: this._waveSystem._autoDelay ?? 0,
+        }
+      : null;
+
+    return {
+      version: 1,
+      ts: Date.now(),
+      rng: rngState,
+      map: this.map ? { id: this.map.id, name: this.map.name } : null,
+      mode: this.modeDef ? { id: this.modeDef.id, name: this.modeDef.name } : null,
+      modifiers: (this.modifiers || []).map((m) => m.id),
+      state: {
+        mode: this.state.mode,
+        paused: this.state.paused,
+        time: this.state.time,
+        money: this.state.money,
+        lives: this.state.lives,
+        waveNumber: this.state.waveNumber,
+        autoNextWave: this.state.autoNextWave,
+        inWave: this.state.inWave,
+        pendingVictory: this.state.pendingVictory ? this.state.pendingVictory.remaining : null,
+        buildTowerId: this.state.buildTowerId,
+        selectedTowerId: this.state.selectedTowerId,
+        timeScale: this.state.timeScale,
+        debugInvincible: this.state.debugInvincible,
+        runStats: this.state.runStats
+          ? {
+              damageDealt: this.state.runStats.damageDealt ?? 0,
+              kills: this.state.runStats.kills ?? 0,
+            }
+          : { damageDealt: 0, kills: 0 },
+      },
+      wave,
+      seenEnemyIds: [...(this._seenEnemyIds || [])],
+      world: {
+        towers: this.world.towers.map((t) => this._serializeTower(t)),
+        enemies: this.world.enemies.map((e) => this._serializeEnemy(e)),
+        allies: this.world.allies.map((a) => this._serializeAlly(a)),
+        projectiles: this.world.projectiles.map((p) => this._serializeProjectile(p)),
+      },
+    };
+  }
+
+  importRunState(payload) {
+    if (!payload || typeof payload !== "object") return false;
+    const mapId = payload.map?.id || payload.mapId;
+    const modeId = payload.mode?.id || payload.modeId;
+    if (!mapId || !modeId) return false;
+    const modifiers = Array.isArray(payload.modifiers) ? payload.modifiers : [];
+
+    this.newRun(mapId, modeId, modifiers, { ignoreUnlocks: true, silent: true });
+    if (!this.map || this.map.id !== mapId) return false;
+    if (!this.modeDef || this.modeDef.id !== modeId) return false;
+
+    if (payload.rng && this._rng?.reset) {
+      this._rng.reset(payload.rng.seed, payload.rng.calls ?? 0);
+      if (Number.isFinite(payload.rng.seed)) this.state.seed = payload.rng.seed;
+    }
+
+    this._seenEnemyIds = new Set(Array.isArray(payload.seenEnemyIds) ? payload.seenEnemyIds : []);
+
+    this.world.towers = [];
+    this.world.enemies = [];
+    this.world.allies = [];
+    this.world.projectiles = [];
+    this.world.vfx = [];
+    this._towerByTile = new Map();
+
+    let maxId = 0;
+    const updateMaxId = (id) => {
+      const num = parseIdNumber(id);
+      if (num != null && num > maxId) maxId = num;
+    };
+
+    for (const t of payload.world?.towers || []) {
+      const tower = this._deserializeTower(t);
+      if (!tower) continue;
+      this.world.towers.push(tower);
+      this._towerByTile.set(tileKey(tower.tx, tower.ty), tower);
+      updateMaxId(tower.id);
+    }
+
+    for (const e of payload.world?.enemies || []) {
+      const enemy = this._deserializeEnemy(e);
+      if (!enemy) continue;
+      this.world.enemies.push(enemy);
+      updateMaxId(enemy.id);
+    }
+
+    for (const a of payload.world?.allies || []) {
+      const ally = this._deserializeAlly(a);
+      if (!ally) continue;
+      this.world.allies.push(ally);
+      updateMaxId(ally.id);
+    }
+
+    for (const p of payload.world?.projectiles || []) {
+      const proj = this._deserializeProjectile(p);
+      if (!proj) continue;
+      this.world.projectiles.push(proj);
+      updateMaxId(proj.id);
+    }
+
+    ensureNextId(maxId + 1);
+
+    if (this._waveSystem) {
+      const wave = payload.wave || {};
+      this._waveSystem.active = Boolean(wave.active);
+      this._waveSystem._time = Number.isFinite(wave.time) ? wave.time : 0;
+      this._waveSystem._events = Array.isArray(wave.events)
+        ? wave.events.map((ev) => ({
+            t: ev.t ?? 0,
+            enemyId: ev.enemyId,
+            pathIndex: ev.pathIndex ?? 0,
+            opts: ev.opts ? { ...ev.opts } : null,
+          }))
+        : [];
+      this._waveSystem._waveMeta = wave.meta ? { ...wave.meta } : null;
+      this._waveSystem._spawnTimeTotal = Number.isFinite(wave.spawnTimeTotal)
+        ? wave.spawnTimeTotal
+        : this._waveSystem._events.length
+          ? this._waveSystem._events[this._waveSystem._events.length - 1].t ?? 0
+          : 0;
+      this._waveSystem._autoDelay = Number.isFinite(wave.autoDelay) ? wave.autoDelay : 0;
+    }
+
+    const s = payload.state || {};
+    this.state.mode = s.mode || "playing";
+    this.state.paused = Boolean(s.paused);
+    this.state.time = Number.isFinite(s.time) ? s.time : 0;
+    this.state.money = Number.isFinite(s.money) ? Math.max(0, Math.round(s.money)) : this.state.money;
+    this.state.lives = Number.isFinite(s.lives) ? Math.max(1, Math.round(s.lives)) : this.state.lives;
+    this.state.waveNumber = Number.isFinite(s.waveNumber) ? Math.max(0, Math.round(s.waveNumber)) : 0;
+    this.state.autoNextWave = Boolean(s.autoNextWave);
+    this.state.inWave = Boolean(s.inWave ?? this._waveSystem?.active);
+    this.state.pendingVictory =
+      s.pendingVictory != null ? { remaining: Math.max(0, s.pendingVictory), mode: this.modeDef } : null;
+    this.state.buildTowerId = s.buildTowerId ?? null;
+    this.state.selectedTowerId = s.selectedTowerId ?? null;
+    this.state.timeScale = Number.isFinite(s.timeScale) ? clamp(s.timeScale, 0.25, 4) : this.state.timeScale;
+    this.state.debugInvincible = Boolean(s.debugInvincible);
+    this.state.gameModeId = this.modeDef?.id ?? this.state.gameModeId;
+    const runStats = s.runStats || {};
+    this.state.runStats = {
+      damageDealt: Number.isFinite(runStats.damageDealt) ? runStats.damageDealt : 0,
+      kills: Number.isFinite(runStats.kills) ? Math.max(0, Math.round(runStats.kills)) : 0,
+    };
+
+    if (this.state.buildTowerId && !this._data.towerDefs?.[this.state.buildTowerId]) {
+      this.state.buildTowerId = null;
+    }
+    if (this.state.selectedTowerId) {
+      const found = this.world.towers.some((t) => t.id === this.state.selectedTowerId);
+      if (!found) this.state.selectedTowerId = null;
+    }
+
+    this.world.modifiers = this.modifierState;
+    this.world.pathInfos = this.pathInfos;
+    this.world.settings = this.state.settings;
+    this._uiRenderState.ghost = null;
+    this._syncUi();
+    return true;
+  }
+
+  _serializeTower(tower) {
+    return {
+      id: tower.id,
+      defId: tower.defId,
+      tx: tower.tx,
+      ty: tower.ty,
+      x: tower.x,
+      y: tower.y,
+      cooldown: tower.cooldown,
+      abilityCooldown: tower.abilityCooldown,
+      appliedUpgrades: [...(tower.appliedUpgrades || [])],
+      totalCost: tower.totalCost ?? 0,
+      totalDamage: tower.totalDamage ?? 0,
+      targetingOverride: tower.targetingOverride ?? null,
+      aimAngle: tower.aimAngle ?? 0,
+      animRecoil: tower.animRecoil ?? 0,
+      animFlash: tower.animFlash ?? 0,
+      stunRemaining: tower.stunRemaining ?? 0,
+      beamWarmup: tower._beamWarmup ?? 0,
+      beamTargetId: tower._beamTargetId ?? null,
+      beamFxTimer: tower._beamFxTimer ?? 0,
+      summonPathIndex: tower._summonPathIndex ?? 0,
+    };
+  }
+
+  _deserializeTower(data) {
+    if (!data || !data.defId) return null;
+    const def = this._data.towerDefs?.[data.defId];
+    if (!def) return null;
+    const tx = Number.isFinite(data.tx) ? data.tx : 0;
+    const ty = Number.isFinite(data.ty) ? data.ty : 0;
+    const pos = this.map?.tileToWorldCenter(tx, ty) || { x: data.x ?? 0, y: data.y ?? 0 };
+    const tower = new Tower(def, tx, ty, pos);
+    if (data.id) tower.id = data.id;
+    if (Number.isFinite(data.x)) tower.x = data.x;
+    if (Number.isFinite(data.y)) tower.y = data.y;
+    tower.cooldown = Number.isFinite(data.cooldown) ? data.cooldown : 0;
+    tower.abilityCooldown = Number.isFinite(data.abilityCooldown) ? data.abilityCooldown : 0;
+    tower.appliedUpgrades = new Set(Array.isArray(data.appliedUpgrades) ? data.appliedUpgrades : []);
+    tower.totalCost = Number.isFinite(data.totalCost) ? data.totalCost : 0;
+    tower.totalDamage = Number.isFinite(data.totalDamage) ? data.totalDamage : 0;
+    tower.targetingOverride = data.targetingOverride ?? null;
+    tower.aimAngle = Number.isFinite(data.aimAngle) ? data.aimAngle : 0;
+    tower.animRecoil = Number.isFinite(data.animRecoil) ? data.animRecoil : 0;
+    tower.animFlash = Number.isFinite(data.animFlash) ? data.animFlash : 0;
+    tower.stunRemaining = Number.isFinite(data.stunRemaining) ? data.stunRemaining : 0;
+    tower._beamWarmup = Number.isFinite(data.beamWarmup) ? data.beamWarmup : 0;
+    tower._beamTargetId = data.beamTargetId ?? null;
+    tower._beamFxTimer = Number.isFinite(data.beamFxTimer) ? data.beamFxTimer : 0;
+    tower._summonPathIndex = Number.isFinite(data.summonPathIndex) ? data.summonPathIndex : 0;
+    this._attachTowerDamageTracker(tower);
+    return tower;
+  }
+
+  _serializeEnemy(enemy) {
+    return {
+      id: enemy.id,
+      defId: enemy.defId,
+      name: enemy.name,
+      maxHp: enemy.maxHp,
+      hp: enemy.hp,
+      baseSpeed: enemy.baseSpeed,
+      armor: enemy.armor,
+      resist: enemy.resist ? { ...enemy.resist } : null,
+      reward: enemy.reward,
+      damageToBase: enemy.damageToBase,
+      contactDamage: enemy.contactDamage,
+      radius: enemy.radius,
+      tags: enemy.tags ? [...enemy.tags] : [],
+      ability: enemy.ability ? { ...enemy.ability } : null,
+      abilities: enemy.abilities ? enemy.abilities.map((a) => ({ ...a })) : [],
+      onDeathSpawn: enemy.onDeathSpawn ? { ...enemy.onDeathSpawn } : null,
+      pathIndex: enemy.pathIndex ?? 0,
+      segIndex: enemy.segIndex ?? 0,
+      segT: enemy.segT ?? 0,
+      progress01: enemy.progress01 ?? 0,
+      x: enemy.x,
+      y: enemy.y,
+      shield: enemy._shield ?? 0,
+      maxShield: enemy._maxShield ?? 0,
+      isFinalBoss: enemy.isFinalBoss ?? false,
+      finalBossMode: enemy.finalBossMode ?? null,
+      finalBossId: enemy.finalBossId ?? null,
+      phase: enemy.phase ?? 1,
+      phase2Triggered: enemy._phase2Triggered ?? false,
+      phase2Threshold: enemy._phase2Threshold ?? 0,
+      phase2Transition: enemy._phase2Transition ? { ...enemy._phase2Transition } : null,
+      invulnerableTime: enemy._invulnerableTime ?? 0,
+      phase2Ready: enemy._phase2Ready ?? false,
+      phase2Afterglow: enemy._phase2Afterglow ?? false,
+      phase2AfterglowTime: enemy._phase2AfterglowTime ?? 0,
+      effects: enemy.effects ? enemy.effects.map((e) => ({ ...e })) : [],
+      slowResist: enemy._slowResist ?? 0,
+      stunResist: enemy._stunResist ?? 0,
+      regen: enemy._regen ?? 0,
+      shieldRegen: enemy._shieldRegen ?? 0,
+      rage: enemy._rage ? { ...enemy._rage } : null,
+      alive: enemy._alive ?? true,
+      pendingAbilities: enemy._pendingAbilities ? enemy._pendingAbilities.map((p) => ({ ...p })) : [],
+    };
+  }
+
+  _deserializeEnemy(data) {
+    if (!data || !data.defId) return null;
+    const pathIndex = Number.isFinite(data.pathIndex) ? data.pathIndex : 0;
+    const enemy = this.createEnemy(data.defId, pathIndex, {
+      segIndex: Number.isFinite(data.segIndex) ? data.segIndex : 0,
+      segT: Number.isFinite(data.segT) ? data.segT : 0,
+      finalBoss: Boolean(data.isFinalBoss),
+      finalBossMode: data.finalBossMode ?? null,
+      finalBossId: data.finalBossId ?? null,
+    });
+    if (data.id) enemy.id = data.id;
+    enemy.name = data.name || enemy.name;
+    enemy.maxHp = Number.isFinite(data.maxHp) ? data.maxHp : enemy.maxHp;
+    enemy.hp = Number.isFinite(data.hp) ? data.hp : enemy.hp;
+    enemy.baseSpeed = Number.isFinite(data.baseSpeed) ? data.baseSpeed : enemy.baseSpeed;
+    enemy.armor = Number.isFinite(data.armor) ? data.armor : enemy.armor;
+    if (data.resist && typeof data.resist === "object") enemy.resist = { ...data.resist };
+    enemy.reward = Number.isFinite(data.reward) ? data.reward : enemy.reward;
+    enemy.damageToBase = Number.isFinite(data.damageToBase) ? data.damageToBase : enemy.damageToBase;
+    enemy.contactDamage = Number.isFinite(data.contactDamage) ? data.contactDamage : enemy.contactDamage;
+    enemy.radius = Number.isFinite(data.radius) ? data.radius : enemy.radius;
+    if (Array.isArray(data.tags)) enemy.tags = new Set(data.tags);
+    enemy.ability = data.ability ? { ...data.ability } : enemy.ability;
+    enemy.abilities = Array.isArray(data.abilities) ? data.abilities.map((a) => ({ ...a })) : enemy.abilities;
+    enemy.onDeathSpawn = data.onDeathSpawn ? { ...data.onDeathSpawn } : enemy.onDeathSpawn;
+    enemy.pathIndex = pathIndex;
+    if (Number.isFinite(data.segIndex)) enemy.segIndex = data.segIndex;
+    if (Number.isFinite(data.segT)) enemy.segT = data.segT;
+    if (Number.isFinite(data.progress01)) enemy.progress01 = data.progress01;
+    if (Number.isFinite(data.x)) enemy.x = data.x;
+    if (Number.isFinite(data.y)) enemy.y = data.y;
+    enemy._shield = Number.isFinite(data.shield) ? data.shield : enemy._shield;
+    enemy._maxShield = Number.isFinite(data.maxShield) ? data.maxShield : enemy._maxShield;
+    enemy.isFinalBoss = Boolean(data.isFinalBoss);
+    enemy.finalBossMode = data.finalBossMode ?? enemy.finalBossMode;
+    enemy.finalBossId = data.finalBossId ?? enemy.finalBossId;
+    enemy.phase = Number.isFinite(data.phase) ? data.phase : enemy.phase;
+    enemy._phase2Triggered = Boolean(data.phase2Triggered);
+    enemy._phase2Threshold = Number.isFinite(data.phase2Threshold) ? data.phase2Threshold : enemy._phase2Threshold;
+    enemy._phase2Transition = data.phase2Transition ? { ...data.phase2Transition } : null;
+    enemy._invulnerableTime = Number.isFinite(data.invulnerableTime) ? data.invulnerableTime : 0;
+    enemy._phase2Ready = Boolean(data.phase2Ready);
+    enemy._phase2Afterglow = Boolean(data.phase2Afterglow);
+    enemy._phase2AfterglowTime = Number.isFinite(data.phase2AfterglowTime) ? data.phase2AfterglowTime : 0;
+    enemy.effects = Array.isArray(data.effects) ? data.effects.map((e) => ({ ...e })) : [];
+    enemy._slowResist = Number.isFinite(data.slowResist) ? data.slowResist : enemy._slowResist;
+    enemy._stunResist = Number.isFinite(data.stunResist) ? data.stunResist : enemy._stunResist;
+    enemy._regen = Number.isFinite(data.regen) ? data.regen : enemy._regen;
+    enemy._shieldRegen = Number.isFinite(data.shieldRegen) ? data.shieldRegen : enemy._shieldRegen;
+    enemy._rage = data.rage ? { ...data.rage } : enemy._rage;
+    enemy._alive = data.alive !== false;
+    enemy._pendingAbilities = Array.isArray(data.pendingAbilities) ? data.pendingAbilities.map((p) => ({ ...p })) : [];
+    return enemy;
+  }
+
+  _serializeAlly(ally) {
+    const pathIndex = this.pathInfos?.indexOf(ally.pathInfo) ?? 0;
+    return {
+      id: ally.id,
+      defId: ally.defId,
+      name: ally.name,
+      maxHp: ally.maxHp,
+      hp: ally.hp,
+      speed: ally.speed,
+      range: ally.range,
+      fireRate: ally.fireRate,
+      damage: ally.damage,
+      damageType: ally.damageType,
+      projectileSpeed: ally.projectileSpeed,
+      splashRadius: ally.splashRadius,
+      onHitEffects: ally.onHitEffects ? ally.onHitEffects.map((e) => ({ ...e })) : [],
+      bonusTags: ally.bonusTags ? [...ally.bonusTags] : null,
+      bonusMult: ally.bonusMult ?? 1,
+      chain: ally.chain ? { ...ally.chain } : null,
+      radius: ally.radius,
+      lifetime: ally.lifetime,
+      color: ally.color,
+      pathIndex: pathIndex >= 0 ? pathIndex : 0,
+      segIndex: ally.segIndex ?? 0,
+      segT: ally.segT ?? 0,
+      progress01: ally.progress01 ?? 0,
+      x: ally.x,
+      y: ally.y,
+      age: ally.age ?? 0,
+      cooldown: ally.cooldown ?? 0,
+      aimAngle: ally.aimAngle ?? 0,
+      animFlash: ally.animFlash ?? 0,
+      sourceTowerId: ally.sourceTowerId ?? null,
+      sourceDefId: ally.sourceDefId ?? null,
+      alive: ally._alive ?? true,
+    };
+  }
+
+  _deserializeAlly(data) {
+    if (!data) return null;
+    const pathIndex = Number.isFinite(data.pathIndex) ? data.pathIndex : 0;
+    const pathInfo = this.pathInfos?.[pathIndex] ?? this.pathInfos?.[0];
+    if (!pathInfo) return null;
+    const def = {
+      id: data.defId || "ally",
+      name: data.name || "Ally",
+      hp: data.maxHp ?? 40,
+      speed: data.speed ?? 60,
+      range: data.range ?? 100,
+      fireRate: data.fireRate ?? 1,
+      damage: data.damage ?? 6,
+      damageType: data.damageType ?? "physical",
+      projectileSpeed: data.projectileSpeed ?? 220,
+      splashRadius: data.splashRadius ?? 0,
+      onHitEffects: Array.isArray(data.onHitEffects) ? data.onHitEffects.map((e) => ({ ...e })) : [],
+      bonusTags: Array.isArray(data.bonusTags) ? [...data.bonusTags] : null,
+      bonusMult: data.bonusMult ?? 1,
+      chain: data.chain ? { ...data.chain } : null,
+      radius: data.radius ?? 8,
+      lifetime: data.lifetime ?? 16,
+      color: data.color ?? "rgba(52,211,153,0.9)",
+    };
+    const ally = new Ally(def, pathInfo, {
+      segIndex: Number.isFinite(data.segIndex) ? data.segIndex : 0,
+      segT: Number.isFinite(data.segT) ? data.segT : 0,
+      sourceTowerId: data.sourceTowerId ?? null,
+      sourceDefId: data.sourceDefId ?? null,
+    });
+    if (data.id) ally.id = data.id;
+    ally.hp = Number.isFinite(data.hp) ? data.hp : ally.hp;
+    ally.maxHp = Number.isFinite(data.maxHp) ? data.maxHp : ally.maxHp;
+    ally.progress01 = Number.isFinite(data.progress01) ? data.progress01 : ally.progress01;
+    if (Number.isFinite(data.x)) ally.x = data.x;
+    if (Number.isFinite(data.y)) ally.y = data.y;
+    ally.age = Number.isFinite(data.age) ? data.age : ally.age;
+    ally.cooldown = Number.isFinite(data.cooldown) ? data.cooldown : ally.cooldown;
+    ally.aimAngle = Number.isFinite(data.aimAngle) ? data.aimAngle : ally.aimAngle;
+    ally.animFlash = Number.isFinite(data.animFlash) ? data.animFlash : ally.animFlash;
+    ally._alive = data.alive !== false;
+    return ally;
+  }
+
+  _serializeProjectile(projectile) {
+    return {
+      id: projectile.id,
+      x: projectile.x,
+      y: projectile.y,
+      prevX: projectile.prevX,
+      prevY: projectile.prevY,
+      speed: projectile.speed,
+      radius: projectile.radius,
+      targetId: projectile.targetId ?? null,
+      targetLast: projectile.targetLast ? { ...projectile.targetLast } : null,
+      damage: projectile.damage,
+      damageType: projectile.damageType,
+      splashRadius: projectile.splashRadius,
+      onHitEffects: projectile.onHitEffects ? projectile.onHitEffects.map((e) => ({ ...e })) : [],
+      sourceTowerId: projectile.sourceTowerId ?? null,
+      vfxColor: projectile.vfxColor,
+      chain: projectile.chain ? { ...projectile.chain } : null,
+      bonusTags: projectile.bonusTags ? [...projectile.bonusTags] : null,
+      bonusMult: projectile.bonusMult ?? 1,
+      executeThreshold: projectile.executeThreshold ?? null,
+      executeMult: projectile.executeMult ?? null,
+      dead: projectile._dead ?? false,
+    };
+  }
+
+  _deserializeProjectile(data) {
+    if (!data) return null;
+    const proj = new Projectile({
+      x: data.x ?? 0,
+      y: data.y ?? 0,
+      speed: data.speed ?? 260,
+      radius: data.radius ?? 3,
+      targetId: data.targetId ?? null,
+      targetLast: data.targetLast ? { ...data.targetLast } : null,
+      damage: data.damage ?? 5,
+      damageType: data.damageType ?? "physical",
+      splashRadius: data.splashRadius ?? 0,
+      onHitEffects: Array.isArray(data.onHitEffects) ? data.onHitEffects.map((e) => ({ ...e })) : [],
+      sourceTowerId: data.sourceTowerId ?? null,
+      vfxColor: data.vfxColor ?? "rgba(231,236,255,0.9)",
+      chain: data.chain ? { ...data.chain } : null,
+      bonusTags: Array.isArray(data.bonusTags) ? [...data.bonusTags] : null,
+      bonusMult: data.bonusMult ?? 1,
+      executeThreshold: data.executeThreshold ?? null,
+      executeMult: data.executeMult ?? null,
+    });
+    if (data.id) proj.id = data.id;
+    proj.prevX = Number.isFinite(data.prevX) ? data.prevX : proj.prevX;
+    proj.prevY = Number.isFinite(data.prevY) ? data.prevY : proj.prevY;
+    if (data.dead) proj.kill();
+    return proj;
   }
 }

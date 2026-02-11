@@ -1,4 +1,5 @@
 import { pickWeighted, randInt } from "../core/rng.js";
+import { clamp } from "../core/math.js";
 
 function roundThreat(v) {
   return Math.round(v * 10) / 10;
@@ -9,20 +10,25 @@ export function createWave(waveNumber, rng, map, enemyDefs, mode = null, modifie
   const t = (waveNumber - 1) / 10;
   const isFinal = Boolean(mode?.totalWaves && waveNumber >= mode.totalWaves);
   const difficulty = mode?.difficulty || {};
+  const earlyWaves = difficulty.earlyWaves ?? 0;
+  const earlyAlpha = earlyWaves > 0 ? clamp(1 - (waveNumber - 1) / Math.max(1, earlyWaves), 0, 1) : 0;
+  const earlyRewardWaves = difficulty.earlyRewardWaves ?? 0;
+  const earlyRewardAlpha =
+    earlyRewardWaves > 0 ? clamp(1 - (waveNumber - 1) / Math.max(1, earlyRewardWaves), 0, 1) : 0;
   const waveMods = modifiers?.wave || {};
-  const budgetMul = (difficulty.budgetMul ?? 1) * (waveMods.budgetMul ?? 1);
-  const intervalMul = (difficulty.intervalMul ?? 1) * (waveMods.intervalMul ?? 1);
+  const budgetMul = applyEarly(difficulty.budgetMul ?? 1, difficulty.earlyBudgetMul, earlyAlpha) * (waveMods.budgetMul ?? 1);
+  const intervalMul = applyEarly(difficulty.intervalMul ?? 1, difficulty.earlyIntervalMul, earlyAlpha) * (waveMods.intervalMul ?? 1);
   const eliteEvery = mode?.eliteEvery ?? 5;
   const bossEvery = mode?.bossEvery ?? 10;
   const seenSet = seenEnemyIds instanceof Set ? seenEnemyIds : new Set(seenEnemyIds || []);
-  const hpScale = difficulty.hpScale ?? 0.022;
+  const hpScale = applyEarly(difficulty.hpScale ?? 0.022, difficulty.earlyHpScaleMul, earlyAlpha);
   const lateStart = difficulty.hpLateStart ?? 18;
   const lateScale = difficulty.hpLateScale ?? 0.008;
   const lateRamp = waveNumber > lateStart ? 1 + (waveNumber - lateStart) * lateScale : 1;
-  const hpMul = (difficulty.hpMul ?? 1) * (1 + waveNumber * hpScale) * lateRamp;
+  const hpMul = applyEarly(difficulty.hpMul ?? 1, difficulty.earlyHpMul, earlyAlpha) * (1 + waveNumber * hpScale) * lateRamp;
   const seenShieldBase = difficulty.seenShieldBase ?? 8;
   const seenShieldScale = difficulty.seenShieldScale ?? 1.6;
-  const seenShieldMul = difficulty.seenShieldMul ?? 1;
+  const seenShieldMul = applyEarly(difficulty.seenShieldMul ?? 1, difficulty.earlySeenShieldMul, earlyAlpha);
 
   // Budget grows roughly linearly, with a small acceleration.
   const baseBudget = 12 + waveNumber * 8 + Math.floor(waveNumber * waveNumber * 0.25) + (isFinal ? 25 : 0);
@@ -90,7 +96,8 @@ export function createWave(waveNumber, rng, map, enemyDefs, mode = null, modifie
       elitePool.push({ item: "grunt", w: 1 });
     }
     const eliteId = pickWeighted(rng, elitePool);
-    const eliteMult = (1.65 + t * 0.2) * (difficulty.eliteMult ?? 1) * (waveMods.eliteMultMul ?? 1);
+    const eliteMult =
+      (1.65 + t * 0.2) * applyEarly(difficulty.eliteMult ?? 1, difficulty.earlyEliteMult, earlyAlpha) * (waveMods.eliteMultMul ?? 1);
     const eliteOpts = { eliteMult, hpMul };
     if (seenSet.has(eliteId)) {
       eliteOpts.extraShield = Math.round((seenShieldBase + waveNumber * seenShieldScale) * seenShieldMul);
@@ -120,7 +127,8 @@ export function createWave(waveNumber, rng, map, enemyDefs, mode = null, modifie
       if (waveNumber >= 34) bossPool.push({ item: "abyssal", w: 2 });
     }
     const bossId = pickWeighted(rng, bossPool);
-    const bossMult = (1 + Math.min(0.25, t * 0.1)) * (difficulty.bossMult ?? 1) * (waveMods.bossMultMul ?? 1);
+    const bossMult =
+      (1 + Math.min(0.25, t * 0.1)) * applyEarly(difficulty.bossMult ?? 1, difficulty.earlyBossMult, earlyAlpha) * (waveMods.bossMultMul ?? 1);
     const bossOpts = { eliteMult: bossMult, hpMul };
     if (seenSet.has(bossId)) {
       bossOpts.extraShield = Math.round((seenShieldBase + waveNumber * seenShieldScale) * seenShieldMul);
@@ -155,7 +163,8 @@ export function createWave(waveNumber, rng, map, enemyDefs, mode = null, modifie
   const rewardBase = 18 + waveNumber * 4 + (isFinal ? 40 : 0);
   const rewardMul = (difficulty.rewardBonusMul ?? 1) * (waveMods.rewardBonusMul ?? 1);
   const rewardAdd = (difficulty.rewardBonusAdd ?? 0) + (waveMods.rewardBonusAdd ?? 0);
-  const rewardBonus = Math.max(0, Math.round(rewardBase * rewardMul + rewardAdd));
+  const earlyRewardAdd = (difficulty.earlyRewardAdd ?? 0) * earlyRewardAlpha;
+  const rewardBonus = Math.max(0, Math.round(rewardBase * rewardMul + rewardAdd + earlyRewardAdd));
 
   // Extra elite chance (modifier-driven).
   if (waveMods.extraEliteChance && rng() < waveMods.extraEliteChance) {
@@ -168,7 +177,8 @@ export function createWave(waveNumber, rng, map, enemyDefs, mode = null, modifie
       elitePool.push({ item: "grunt", w: 1 });
     }
     const eliteId = pickWeighted(rng, elitePool);
-    const eliteMult = (1.45 + t * 0.15) * (difficulty.eliteMult ?? 1) * (waveMods.eliteMultMul ?? 1);
+    const eliteMult =
+      (1.45 + t * 0.15) * applyEarly(difficulty.eliteMult ?? 1, difficulty.earlyEliteMult, earlyAlpha) * (waveMods.eliteMultMul ?? 1);
     const eliteOpts = { eliteMult, hpMul };
     if (seenSet.has(eliteId)) {
       eliteOpts.extraShield = Math.round((seenShieldBase + waveNumber * seenShieldScale) * seenShieldMul);
@@ -246,4 +256,10 @@ function buildPool(poolDef, waveNumber) {
     out.push({ item: entry.item, w: weight });
   }
   return out;
+}
+
+function applyEarly(value, earlyMul = 1, alpha = 0) {
+  if (!Number.isFinite(value)) return value;
+  const mul = Number.isFinite(earlyMul) ? earlyMul : 1;
+  return value * (1 + alpha * (mul - 1));
 }

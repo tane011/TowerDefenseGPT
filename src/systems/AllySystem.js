@@ -9,10 +9,13 @@ export class AllySystem {
   update(dt, world) {
     if (!world.allies) return;
     const enemies = world.enemies || [];
+    const towerById = new Map();
+    for (const t of world.towers || []) towerById.set(t.id, t);
     const keep = [];
 
     for (const ally of world.allies) {
       if (!ally.alive) continue;
+      const sourceTower = ally.sourceTowerId ? towerById.get(ally.sourceTowerId) : null;
 
       ally.animFlash = Math.max(0, ally.animFlash - dt * 6);
       ally.age += dt;
@@ -37,7 +40,8 @@ export class AllySystem {
         if (dist2(ally.x, ally.y, enemy.x, enemy.y) <= r * r) {
           const hit = ally.contactDamage ?? ally.damage * 0.35;
           if (hit > 0 && enemy.takeDamage) {
-            enemy.takeDamage(hit, ally.damageType);
+            const result = enemy.takeDamage(hit, ally.damageType);
+            if (result?.dealt) sourceTower?.recordDamage?.(result.dealt);
           }
           ally._alive = false;
           ally.animFlash = Math.max(ally.animFlash, 0.4);
@@ -76,7 +80,7 @@ export class AllySystem {
               damageType: ally.damageType,
               splashRadius: ally.splashRadius,
               onHitEffects: ally.onHitEffects,
-              sourceTowerId: ally.id,
+              sourceTowerId: ally.sourceTowerId ?? null,
               vfxColor: vfxColorForDamage(ally.damageType),
               chain: ally.chain ? { ...ally.chain } : null,
               bonusTags: ally.bonusTags ? [...ally.bonusTags] : null,

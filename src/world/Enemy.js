@@ -54,6 +54,8 @@ export class Enemy {
     this._phase2Transition = null;
     this._invulnerableTime = 0;
     this._phase2Ready = false;
+    this._phase2Afterglow = false;
+    this._phase2AfterglowTime = 0;
 
     // Active status effects.
     // Shape: { type, duration, remaining, magnitude, tickEvery, tickTimer, mode }
@@ -66,6 +68,7 @@ export class Enemy {
     this._rage = def.rage ?? null; // { hpPct, speedMul }
 
     this._alive = true;
+    this._reportDamage = opts.reportDamage ?? null;
 
     if (opts.eliteMult) {
       const m = opts.eliteMult;
@@ -98,7 +101,7 @@ export class Enemy {
   }
 
   // Apply a status effect template (data-driven). Returns true if applied/refresh happened.
-  applyEffect(template) {
+  applyEffect(template, sourceTowerId = null) {
     const { type } = template;
 
     // Hard counters: some enemies resist slow/stun entirely.
@@ -121,6 +124,7 @@ export class Enemy {
         existing.mode = mode;
         existing.tickEvery = tickEvery;
         existing.damageType = damageType;
+        if (sourceTowerId != null) existing.sourceTowerId = sourceTowerId;
       }
       return true;
     }
@@ -134,6 +138,7 @@ export class Enemy {
       tickTimer: 0,
       mode,
       damageType,
+      sourceTowerId: sourceTowerId ?? null,
     });
     return true;
   }
@@ -255,16 +260,30 @@ export class Enemy {
     if (!this._alive) return { reachedBase: false, phaseShifted: false };
 
     if (this._phase2Transition) {
-      this._phase2Transition.remaining -= dt;
-      this._invulnerableTime = Math.max(0, this._phase2Transition.remaining);
+      const transition = this._phase2Transition;
+      transition.remaining -= dt;
+      this._invulnerableTime = Math.max(0, transition.remaining);
+      const progress = transition.total > 0 ? clamp(1 - transition.remaining / transition.total, 0, 1) : 1;
+      if (transition.healDuringTransition) {
+        const startHp = transition.startHp ?? this.hp;
+        this.hp = Math.min(this.maxHp, startHp + (this.maxHp - startHp) * progress);
+      }
+      if (transition.healShieldDuringTransition) {
+        const startShield = transition.startShield ?? this._shield;
+        this._shield = Math.min(this._maxShield, startShield + (this._maxShield - startShield) * progress);
+      }
       this.progress01 = pathProgress01(this.pathInfo, this.segIndex, this.segT);
-      if (this._phase2Transition.remaining <= 0) {
+      if (transition.remaining <= 0) {
         this._phase2Transition = null;
         this._invulnerableTime = 0;
         this._phase2Ready = true;
         return { reachedBase: false, phaseShifted: true, phaseStage: "complete" };
       }
       return { reachedBase: false, phaseShifted: false, phaseStage: "transition" };
+    }
+
+    if (this._phase2Afterglow) {
+      this._phase2AfterglowTime = (this._phase2AfterglowTime ?? 0) + dt;
     }
 
     if (this._maybeTriggerPhase2()) {
@@ -278,6 +297,11 @@ export class Enemy {
     }
     if (this._shieldRegen > 0 && this._shield < this._maxShield) {
       this._shield = Math.min(this._maxShield, this._shield + this._shieldRegen * dt);
+    }
+
+    if (this.tags.has("boss") && this._pendingAbilities?.length) {
+      this.progress01 = pathProgress01(this.pathInfo, this.segIndex, this.segT);
+      return { reachedBase: false, phaseShifted: false };
     }
 
     const stunned = this._isStunned();
@@ -349,7 +373,15 @@ export class Enemy {
     if (!cfg) return false;
     this._phase2Triggered = true;
     const duration = Math.max(0.6, cfg.transitionDuration ?? 1.4);
-    this._phase2Transition = { remaining: duration, total: duration };
+    this._phase2Transition = {
+      remaining: duration,
+      total: duration,
+      startHp: this.hp,
+      startShield: this._shield,
+      healDuringTransition: Boolean(cfg.healDuringTransition),
+      healShieldDuringTransition: Boolean(cfg.healShieldDuringTransition),
+    };
+    this._phase2AfterglowTime = 0;
     this._invulnerableTime = duration;
     if (cfg.clearEffects !== false) this.effects = [];
     return true;
@@ -359,6 +391,7 @@ export class Enemy {
     const cfg = this._phase2;
     if (!cfg) return false;
     this.phase = 2;
+    if (this.defId === "void_emperor") this._phase2Afterglow = true;
 
     if (cfg.speedMul != null) this.baseSpeed *= cfg.speedMul;
     if (cfg.armorAdd != null) this.armor += cfg.armorAdd;
@@ -435,7 +468,8 @@ export class Enemy {
             const dot = Math.max(0, e.magnitude);
             const dtype =
               e.damageType ?? (e.type === "burn" ? "fire" : e.type === "poison" ? "poison" : "physical");
-            this.takeDamage(dot, dtype);
+            const result = this.takeDamage(dot, dtype);
+            if (result?.dealt) this._reportDamage?.(result.dealt, e.sourceTowerId ?? null);
             if (!this._alive) break;
           }
         }

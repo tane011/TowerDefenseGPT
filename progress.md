@@ -198,6 +198,11 @@ Notes (2026-02-04):
 - Moved Settings card below Help in the side panel.
 - Added new maps: Sunken Canals, Aurora Ridge, Bastion Circuit, Shattered Causeway with unique layouts and decor.
 
+Notes (2026-02-11):
+- Reworked late-game features to be non-gameplay: Theme Pack, Cinematic UI, and Tower & Enemy Codex.
+- Removed gameplay-affecting feature effects from runs.
+- Added Codex screen (tabs for Towers/Enemies/Bosses) and premium settings for Cinematic UI + Themes.
+
 Notes (2026-02-04):
 - Removed the "(active)" suffix from wave HUD/side panel to keep layout stable.
 - Fixed ally stat inflation by deep-cloning summon ability data during stat computation.
@@ -477,3 +482,533 @@ Notes (2026-02-05):
 Tests (2026-02-05):
 - Playwright (custom): Void Crucible background theme: `output/web-game-void-crucible-theme/shot-0.png` + `state-0.json`.
 - Playwright (custom): lane-jump telegraph destination: `output/web-game-cataclysm-telegraph/shot-0.png` + `state-0.json`.
+
+Notes (2026-02-05):
+- Cataclysm <-> Void Crucible pairing is now enforced both in UI selection and in Game.newRun. Switching modes/maps automatically resolves to a valid pair while still allowing users to exit the lock.
+
+Tests (2026-02-05):
+- Playwright (custom): mode/map lock behavior verified in `output/web-game-cataclysm-lock/state.json`.
+
+Notes (2026-02-05):
+- Added a “Locked Pair” badge on the start screen when map/mode are tied, and the Start button now uses a Cataclysm-specific gradient.
+
+Tests (2026-02-05):
+- Playwright (custom): badge + button styling captured in `output/web-game-cataclysm-badge/shot-0.png` + `state-0.json`.
+
+Notes (2026-02-05):
+- Added early-wave easing parameters to the wave generator and tuned Cataclysm early game (waves 1–12) for fairer pacing: lower HP and shields, slightly slower cadence, and higher budget.
+
+Tests (2026-02-05):
+- Playwright (custom): Cataclysm wave 1 after early-game tuning in `output/web-game-cataclysm-early/shot-0.png` + `state-0.json`.
+
+Notes (2026-02-05):
+- Cataclysm early-game easing now ramps through wave 18 (wider on-ramp) and adds a small wave-clear bonus for the first 10 waves to keep the early economy fair while difficulty ramps.
+
+Tests (2026-02-05):
+- Playwright (custom): Cataclysm wave 1 after extended easing + early bonus in `output/web-game-cataclysm-early-4/shot-0.png` + `state-0.json`.
+
+Notes (2026-02-05):
+- Build palette hover tooltip now shows primary damage type and base DPS (e.g., "physical | 12.0").
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-hover-tooltip` (hover tooltip is browser-native; not visible in headless screenshot).
+
+Notes (2026-02-05):
+- Build palette hover tooltip now uses total tier-0 DPS (base + ability) instead of base-only.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-hover-tooltip-total` (tooltip not visible in headless capture).
+
+Notes (2026-02-05):
+- Replaced native title tooltip with a styled palette tooltip (uppercase pill) showing primary damage type + total tier-0 DPS; uses modifier-adjusted base stats.
+- Tooltip now positions next to hovered build button and updates after start/modifier changes.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-hover-tooltip-ui`
+- Playwright (hover attempt): `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-hover.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-hover-tooltip-ui-2` (tooltip may not appear in headless capture depending on cursor/viewport).
+
+Notes (2026-02-05):
+- Palette tooltip label now uses role/status tags (DPS, SUPPORT, SUMMONER, STUN, SLOW, DEBUFF, BURN, POISON, BLEED) instead of elemental damage types; tier-0 effects determine the tag.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-hover-tooltip-tag`
+
+Notes (2026-02-05):
+- Palette tooltip now renders inline above the Build list (pill style) instead of floating over other tower names.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-hover-tooltip-inline-nice`
+
+Notes (2026-02-05):
+- Build palette now shows an always-visible meta line inside each tower button (TAG | DPS).
+- Added small color icon per tower and reduced tile sizing to fit more entries per row.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-build-icons-small`
+
+Notes (2026-02-05):
+- Build tiles now use a tower silhouette icon (SVG mask) colored per tower; text is constrained with ellipsis to always fit.
+- Slightly roomier tile sizing + polished icon styling for better readability while still fitting more per row.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-build-icons-silhouette`
+
+Notes (2026-02-05):
+- Build palette now uses actual base tower sprites for icons (generated from render sprite sheets) and moved cost into the meta line so full tower names can wrap.
+- Tile layout widened to keep full labels visible without truncation; meta + label wrap cleanly.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-build-icons-sprite-4`
+
+Notes (2026-02-05):
+- Build palette now groups towers by role (cheapest to most expensive within each), adds group headers, and removes the type label from per-tower line.
+- Cost is now bold gold in the meta line; DPS moved to subtext, and non-DPS towers show their primary ability/aura summary instead.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-build-grouped`
+
+Notes (2026-02-05):
+- Group headers now use a renamed label for DPS (Assault).
+- Prism Beam DPS now computed from beam stats (warmup-averaged) instead of showing 0.
+- Non-DPS towers show primary ability/aura text in the subline; DPS towers show DPS only.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-build-grouped-3`
+
+Notes (2026-02-05):
+- Non-DPS towers now show their ability description in the subline (fallback to aura summary/utility if no ability).
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-build-grouped-4`
+
+Notes (2026-02-05):
+- Sidebar now locks (dim + non-interactive) while the start screen is open; Settings card stays active.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-start-lock`
+
+Notes (2026-02-05):
+- Sidebar now greys out entirely during start screen; settings moved into a dropdown on the start screen for easy access.
+- Non-DPS towers now show a clear ability description; summoner towers show summon name + tier-0 DPS.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-start-settings`
+
+Notes (2026-02-05):
+- Start screen Modifiers and Settings are now clear dropdowns with summary arrow + hint; modifiers show selected count inline.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-start-dropdowns`
+
+Notes (2026-02-05):
+- Modifiers + Settings dropdowns now default collapsed; summaries include clear caret + hint (modifiers show "click to expand").
+- Support/Slowing/Debuff towers now use short plain-language summaries (no stats); summoners show summon name + tier-0 DPS.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-start-dropdowns-2`
+
+Notes (2026-02-05):
+- Modifiers list now expands fully (no max-height/scroll) to match settings dropdown behavior.
+- Added QoL settings: keep build mode active after placement + auto-select newly built towers.
+- Added setting wiring + persistence, and tower placement respects new settings.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-modifiers-full`
+
+Notes (2026-02-05):
+- Added QoL settings: keep build mode, auto-select built towers, auto-pause after wave, auto-pause on boss wave.
+- Wave system now respects pause-on-boss and pause-on-wave-clear settings.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-qol-settings`
+
+Notes (2026-02-05):
+- Settings dropdown now grouped by category (Gameplay, Visuals, Accessibility, HUD).
+- Added Reset Defaults button to restore settings to defaults (and apply + persist).
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-settings-grouped`
+
+Notes (2026-02-05):
+- Support tower summaries now call out their primary support benefit (fire rate, damage, range, etc.) based on aura buffs.
+
+Notes (2026-02-05):
+- Support tower summaries now describe overall usage (boosts nearby towers) and call out the primary benefit.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-support-summary`
+
+Notes (2026-02-05):
+- Modifiers are now grouped into nested dropdowns by effect category (Economy, Tower Offense, Abilities, Chains, Auras, Enemy Toughness, Enemy Speed/Control, Wave Flow, Elites/Bosses).
+- Group summaries show selected counts; modifiers sorted alphabetically within groups.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-modifier-groups`
+
+Notes (2026-02-05):
+- Added per-group Modifiers actions (Randomize, Add All, Clear) inside each category dropdown.
+- Global modifier actions removed since groups now control their own sets.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-modifier-groups-actions`
+
+Notes (2026-02-05):
+- Added global modifier actions (All Modifiers) with distinct styling; group-level actions remain.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-modifier-groups-global`
+
+Notes (2026-02-05):
+- Cataclysm early game softened: extra starting resources, longer early ramp (24 waves), slower spawns, lower HP scaling, reduced early shields/elite pressure, and higher early clear bonuses.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-cataclysm-early.json --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-cataclysm-early-tuned`
+
+Notes (2026-02-05):
+- Further eased Cataclysm early game: higher start money/lives, slower early spawns, reduced early budget/HP/shields, longer early ramp, slightly softer base HP/interval scaling.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-cataclysm-early-2.json --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-cataclysm-early-tuned-2`
+
+Notes (2026-02-05):
+- Rebalanced upgrade value: tier-1 upgrades cheaper (per-tier cost multiplier) and upgrades now grant larger early stat scaling with tapered gains for later tiers.
+
+Notes (2026-02-05):
+- Major upgrade overhaul: tier-1–3 costs slashed and upgrade scaling now massively boosts damage/rate/range/status/aura/summons with added cooldown reduction; designed to make upgrades clearly superior to buying duplicate towers.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-upgrade-balance`
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-upgrade-balance-2`
+
+Notes (2026-02-05):
+- Made the stats HUD (Money/Lives/Wave/Threat) sticky so it stays visible while scrolling the side panel.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 250 --screenshot-dir output/web-game-sticky-stats`
+
+Notes (2026-02-05):
+- Strengthened sticky stats bar divider/shadow and slightly increased background opacity for clearer separation during scroll.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 250 --screenshot-dir output/web-game-sticky-stats-divider`
+
+Notes (2026-02-05):
+- Added a subtle inner bottom divider to the sticky stats bar for clearer separation from the scrollable panel.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 250 --screenshot-dir output/web-game-sticky-stats-divider-2`
+
+Notes (2026-02-05):
+- Replaced the inner divider with a soft gradient fade under the sticky stats bar for a cleaner separation.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 250 --screenshot-dir output/web-game-sticky-stats-fade`
+
+Notes (2026-02-05):
+- Replaced enemy status debuff letters with color-coded icon badges (snowflake, flame, droplet, target, shield, etc.) so debuffs are readable at a glance.
+- Status icons now sort by priority (stun/armor shred/vuln first) and render slightly larger with better spacing.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-debuff-icons.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-debuff-icons-2`
+
+Notes (2026-02-05):
+- Status icons now use a glow + darker outline, slightly larger sizing, and a compact "+N" overflow badge when more than 4 debuffs are active.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-debuff-icons.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-debuff-icons-3`
+
+Notes (2026-02-05):
+- Added two endgame single-target towers with unique tier-4 finishers: Judicator (arcane execution edict/null decree) and Rift Piercer (lightning rift lance/storm requiem).
+- Added matching sprite emblems for Judicator and Rift Piercer for build icons/in-world render.
+
+Tests (2026-02-05):
+- Playwright: node  --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-endgame.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-endgame-single
+- Playwright: node  --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-start-screen.json --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-endgame-start-3
+
+Notes (2026-02-05):
+- Removed the in-canvas HUD text (money/lives/wave/summons) since the sidebar already displays these stats.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 250 --screenshot-dir output/web-game-no-hud`
+
+Notes (2026-02-05):
+- Added finisher VFX + execute mechanics for the new endgame single-target towers. Tier-4 abilities now spawn custom beam/zap/pulse VFX and can execute low-HP targets (Execution Edict).
+- Ability VFX are data-driven via ability.vfx (beam/zap/pulse) and projectile executeThreshold/executeMult.
+
+Tests (2026-02-05):
+- Playwright: node  --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-endgame.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-endgame-vfx
+- Playwright (headed): node  --url http://127.0.0.1:5173 --actions-file /tmp/td-actions-endgame.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --headless false --screenshot-dir output/web-game-endgame-vfx-headed
+
+Notes (2026-02-05):
+- Softened the sticky stats bar shadow to remove the heavy rectangular edge and keep the panel separation subtle.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 250 --screenshot-dir output/web-game-sticky-stats-soft`
+
+Notes (2026-02-05):
+- Fixed startup crash: stray helper methods were outside the UI class in `src/ui/UI.js`, causing `SyntaxError: Unexpected token '{'`. Moved helpers to top-level functions and updated call sites.
+
+Tests (2026-02-05):
+- Syntax check: `find src -name '*.js' -print0 | xargs -0 -n1 node --check`
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-smoke-2`
+
+Notes (2026-02-05):
+- Added side-panel scroll detection to shrink the sticky stats bar slightly when scrolled; returns to full size at top.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 250 --screenshot-dir output/web-game-sticky-stats-shrink`
+
+Notes (2026-02-05):
+- Increased the scrolled HUD shrink slightly (smaller padding/gap and font sizes).
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 250 --screenshot-dir output/web-game-sticky-stats-shrink-2`
+
+Notes (2026-02-05):
+- Replaced the binary scrolled class with a proportional shrink based on side panel scrollTop (smoothly scales padding, gap, and font sizes over the first 80px).
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 250 --screenshot-dir output/web-game-sticky-stats-scroll`
+
+Notes (2026-02-05):
+- Void Emperor phase-2 transition now lasts 10s, heals to full during the shift, and shows a clearer telegraph: swirling phase rings around the boss, an anchor ring + tether at the path start, and a boss-bar “Phase Shift” timer.
+- Added a webdriver-only `?voidPhaseTest=1` shortcut to spawn the Void Emperor and auto-trigger the transition for visual testing.
+
+Tests (2026-02-05):
+- Playwright (custom): `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173?voidPhaseTest=1 --actions-file /tmp/td-actions-void-phase.json --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-void-phase`
+
+Notes (2026-02-05):
+- Added phase-shift screen tint + subtle camera shake during Void Emperor transition.
+- Added rift spark particles along the path toward the start point during the 10s phase shift.
+- VFX system now supports simple velocity/rotation to animate drifting sparks.
+
+Tests (2026-02-05):
+- Playwright (custom): `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173?voidPhaseTest=1 --actions-file /tmp/td-actions-void-phase.json --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-void-phase-2`
+
+Notes (2026-02-05):
+- Phase-shift screen shake + tint now persist for Void Emperor after phase transition (until it dies).
+
+Tests (2026-02-05):
+- Playwright (custom): `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173?voidPhaseTest=1 --actions-file /tmp/td-actions-void-phase-long.json --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-void-phase-3`
+
+Notes (2026-02-05):
+- Void Emperor phase 2 now has a distinct visual form (core glow, spikes, and brighter aura), plus ongoing void aura VFX and orbiting sparks to signal strength.
+
+Tests (2026-02-05):
+- Playwright (custom): `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173?voidPhaseTest=1 --actions-file /tmp/td-actions-void-phase-long.json --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-void-phase-4`
+
+Notes (2026-02-05):
+- Boss bar now uses a fixed-height canvas above the map and shows a "Boss Intel" panel when no boss is present (next boss wave + cadence). Layout spacing increased and text is truncated to avoid overlaps.
+- Boss ability list is sorted by soonest-to-fire (remaining windup) so the next cast is always at the top.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-bossbar-layout`
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-bossbar-layout-2`
+
+Notes (2026-02-05):
+- Void Emperor phase 2 now spams a stronger Void Gate summon (count 6) with a shorter cooldown, and all phase-2 ability cooldowns are reduced to increase stress.
+
+Tests (2026-02-05):
+- Playwright (custom): `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173?voidPhaseTest=1 --actions-file /tmp/td-actions-void-phase-long.json --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-void-phase-5`
+
+Notes (2026-02-05):
+- Phase 2 shake now ramps from minimal to intense over ~8s after phase start; tint intensity ramps with it.
+
+Tests (2026-02-05):
+- Playwright (custom): `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173?voidPhaseTest=1 --actions-file /tmp/td-actions-void-phase-long.json --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-void-phase-6`
+
+Notes (2026-02-05):
+- Boss bar repurposed to a Run Status panel when no boss is active (map + mode header, wave state, auto toggle, threat, modifiers).
+- Panel spacing increased; draws consistently using fixed height without layout shifts.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-runstatus`
+- Playwright (manual): Full-page screenshot via Playwright to verify Run Status panel: `output/web-game-runstatus/full-page-advanced.png`
+
+Notes (2026-02-05):
+- Run Status bar now animates with a moving pulse tied to game time (pauses when paused; faster during active wave).
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-runstatus-motion`
+- Playwright (manual): `output/web-game-runstatus-motion/full-page-1.png` and `full-page-2.png` to confirm motion.
+
+Notes (2026-02-05):
+- Run Status bar now fills based on wave spawn progress (spawnRemaining / spawnTotal) when a wave is active; shows % on the right.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-runstatus-progress`
+- Playwright (manual): started wave and captured `output/web-game-runstatus-progress/canvas-wave.png` to verify progress fill.
+
+Notes (2026-02-05):
+- Run Status bar now fills by run progress for fixed-length modes, and by boss-cycle progress for endless (wave-to-boss). Shows label like "Boss in 11w".
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-runstatus-progress2`
+- Playwright (manual): `output/web-game-runstatus-progress2/full-page-1.png` and `full-page-2.png` to confirm progress bar fill and label updates.
+
+Notes (2026-02-05):
+- Run Status bar now counts the active wave (current wave = cleared + 1 when in wave). Progress uses current wave for fixed-length modes and for boss cadence in Endless.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-runstatus-progress3`
+- Playwright (manual): `output/web-game-runstatus-progress3/full-page-1.png` confirms Wave 1 during active wave.
+
+Notes (2026-02-05):
+- Side panel wave display now shows the active wave (cleared + 1 when in wave), consistent with Run Status bar.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-wave-display`
+- Playwright (manual): `output/web-game-wave-display/full-page-wave.png` shows Wave 1 during active wave.
+
+Notes (2026-02-05):
+- Sidebar wave display now uses current wave (in-wave = waveNumber + 1), matching bossbar/run status. Verified during active wave.
+
+Tests (2026-02-05):
+- Playwright: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-wave-display`
+
+Notes (2026-02-05):
+- Added custom gamemode creator (start menu only) with full settings, enemy pools, templates, import/export, and localStorage save/load; custom modes show in mode selector under a "Custom" group.
+- Added custom map creator (start menu only) with path editing, decor placement, templates, import/export, validation, and localStorage save/load; custom maps show in map selector under a "Custom" group.
+- Fixed invalid map/mode combos when both are locked (custom or built-in): new map/mode pair resolver picks a valid pair and updates selects, preventing startup breaks when multiple locks exist.
+
+Tests (2026-02-05):
+- Playwright: `node /Users/dylantanenbaum/.codex/skills/develop-web-game/scripts/web_game_playwright_client.js --url http://127.0.0.1:5173 --actions-file /Users/dylantanenbaum/.codex/skills/develop-web-game/references/action_payloads.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir /Users/dylantanenbaum/Documents/TowerDefenseGPT/output/web-game-mapmode-lock`
+
+Notes (2026-02-05):
+- Overhauled lock rules: maps no longer lock to modes. Removed required mode from map defs + custom map editor; only modes may lock to a map.
+- Updated map/mode pairing resolution to respect mode->map locks only; map changes now choose an unlocked mode if needed.
+- Mode description/badge now show only map locks; recommended maps are informational (no auto-select).
+
+Tests (2026-02-05):
+- Playwright: `node /Users/dylantanenbaum/.codex/skills/develop-web-game/scripts/web_game_playwright_client.js --url http://127.0.0.1:5173 --actions-file /Users/dylantanenbaum/.codex/skills/develop-web-game/references/action_payloads.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir /Users/dylantanenbaum/Documents/TowerDefenseGPT/output/web-game-mapmode-nolock`
+
+Notes (2026-02-05):
+- Endgame tower upgrades now cost more: upgrade costs for endgame towers are multiplied by 2x via a parent lookup in `Game.getUpgradeCost`.
+
+Tests (2026-02-05):
+- Playwright: `node /Users/dylantanenbaum/.codex/skills/develop-web-game/scripts/web_game_playwright_client.js --url http://127.0.0.1:5173 --actions-file /Users/dylantanenbaum/.codex/skills/develop-web-game/references/action_payloads.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir /Users/dylantanenbaum/Documents/TowerDefenseGPT/output/web-game-endgame-upgrade-costs`
+
+Notes (2026-02-05):
+- Endgame upgrade costs now scale by tier (1.4x / 1.9x / 2.4x / 3.0x for tiers 1-4) so early upgrades stay approachable while later tiers get expensive.
+
+Tests (2026-02-05):
+- Playwright: `node /Users/dylantanenbaum/.codex/skills/develop-web-game/scripts/web_game_playwright_client.js --url http://127.0.0.1:5173 --actions-file /Users/dylantanenbaum/.codex/skills/develop-web-game/references/action_payloads.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir /Users/dylantanenbaum/Documents/TowerDefenseGPT/output/web-game-endgame-upgrade-costs-tiered`
+
+Notes (2026-02-05):
+- Beam towers now lock onto their current target until it dies or the tower is stunned; target is cleared on kill or stun.
+
+Tests (2026-02-05):
+- Playwright: `node /Users/dylantanenbaum/.codex/skills/develop-web-game/scripts/web_game_playwright_client.js --url http://127.0.0.1:5173 --actions-file /Users/dylantanenbaum/.codex/skills/develop-web-game/references/action_payloads.json --click-selector "#start-btn" --iterations 1 --pause-ms 300 --screenshot-dir /Users/dylantanenbaum/Documents/TowerDefenseGPT/output/web-game-beam-lock`
+
+Notes (2026-02-10):
+- Added persistent Coins + unlock system with a data-driven shop catalog. Basic towers (Archer/Cannon/Frost/Alchemist/Banner) and core modes/maps are free; all other towers, maps, modes, and optional features (Modifiers, Custom Maps/Modes) are locked behind coin costs.
+- New modules: `src/meta/Progression.js` (localStorage save/load for coins+unlocks), `src/meta/Shop.js` (purchase logic + queries), `src/meta/unlocks.js` (unlock keys + default unlocks), `src/meta/rewards.js` (coin rewards), `src/data/shop.js` (catalog builder).
+- Start screen now shows Coins and a Shop button. Shop overlay lists items by category, shows lock status + costs, and handles purchases.
+- Modes/maps select show locked items with cost, disable selection; start run resolves to valid unlocked pairs. Build palette shows locked towers with coin cost; clicking locked towers opens shop.
+- Modifiers/Custom Map/Custom Mode features are locked until purchased; UI disables and shows “Locked” messaging.
+- Coin rewards are granted at game over/victory based on waves cleared + difficulty, with a victory bonus for fixed-length modes; rewards displayed on game-over panel.
+- Added `?uiCapture=1` webdriver hook to hide canvases so Playwright screenshots capture UI overlays.
+
+Tests (2026-02-10):
+- Syntax check: `find src -name '*.js' -print0 | xargs -0 -n1 node --check`
+- Playwright: `node $WEB_GAME_CLIENT --url "http://127.0.0.1:5173?uiCapture=1" --actions-file /tmp/td-actions-shop.json --click-selector "#shop-open" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-shop-ui-2`
+  - Verified Shop overlay renders with locked/unlocked items and coin costs.
+
+TODO:
+- If you want explicit visual verification of coin rewards on game over, run a manual loss and confirm the Coins panel on the Game Over screen.
+
+Notes (2026-02-10):
+- Coin rewards now include a modifier-based multiplier that scales up for challenge modifiers and down for helpful modifiers. The multiplier is inferred from modifier effects (with optional `coinBias` override), then clamped to keep results sane.
+- Game Over coin breakdown now shows the modifier multiplier when it differs from 1.0x.
+
+Tests (2026-02-10):
+- Syntax check: `find src -name '*.js' -print0 | xargs -0 -n1 node --check`
+- Playwright attempt: `node $WEB_GAME_CLIENT --url http://127.0.0.1:5173 --actions-file $WEB_GAME_ACTIONS --iterations 1 --pause-ms 250 --screenshot-dir output/web-game-modcoins` (UI captured; menu only)
+
+Notes (2026-02-10):
+- Revamped the start flow into two dedicated overlays: a Title screen (story + Play/Shop/Tutorial) and a separate Run Setup screen (map/mode/modifiers/settings).
+- Coins now show globally via a fixed HUD pill; removed the extra coin pill from the Shop header to avoid duplication.
+- Menu-only screens (Shop/Custom Map/Custom Mode) now open only from Title/Setup overlays.
+
+Tests (2026-02-10):
+- Playwright: `node $WEB_GAME_CLIENT --url "http://127.0.0.1:5173?uiCapture=1" --actions-file $WEB_GAME_ACTIONS --iterations 1 --pause-ms 250 --screenshot-dir output/web-game-ui-revamp-title`
+- Playwright: `node $WEB_GAME_CLIENT --url "http://127.0.0.1:5173?uiCapture=1" --actions-file $WEB_GAME_ACTIONS --click-selector "#open-setup" --iterations 1 --pause-ms 250 --screenshot-dir output/web-game-ui-revamp-setup`
+- Playwright: `node $WEB_GAME_CLIENT --url "http://127.0.0.1:5173?uiCapture=1" --actions-file $WEB_GAME_ACTIONS --click-selector "#shop-open" --iterations 1 --pause-ms 250 --screenshot-dir output/web-game-ui-revamp-shop`
+
+Notes (2026-02-11):
+- Shop sections now render as distinct shop panels with themed headers and gated modifier purchases (requires Modifier Access).
+- Mode selector now labels map-bundled modes and disables them until the map is unlocked; mode description/badge updated to reflect bundles.
+- Modifier list now groups by Challenge vs Helpful, shows coin multiplier per modifier, and respects individual modifier unlocks with lock pills.
+- Run Intel panel now summarizes mode stats and live coin multiplier based on selected modifiers.
+- Modifier actions (randomize/add all/clear) now operate only on unlocked modifiers.
+- Progression stats now record runs on game over for the new Stats screen.
+
+TODO:
+- Run Playwright smoke tests and inspect new UI screenshots for title/setup/shop/modifiers.
+- Verify modifier unlock gating and bundled mode unlock behavior in the UI.
+
+Notes (2026-02-11):
+- Ran Playwright UI smoke test after title screen redesign; title screen renders in automated capture.
+- Output: /Users/dylantanenbaum/Documents/TowerDefenseGPT/output/web-game-home-ui/shot-0.png and state-0.json.
+- No blank-screen repro in local test; requesting user repro details (browser/URL/console errors).
+
+Tests (2026-02-11):
+- Playwright: node /Users/dylantanenbaum/.codex/skills/develop-web-game/scripts/web_game_playwright_client.js --url "http://127.0.0.1:5173?uiCapture=1" --actions-file /Users/dylantanenbaum/.codex/skills/develop-web-game/references/action_payloads.json --iterations 1 --pause-ms 300 --screenshot-dir /Users/dylantanenbaum/Documents/TowerDefenseGPT/output/web-game-home-ui
+
+Notes (2026-02-11):
+- Investigated blank "Loading..." screen: Playwright canvas-only capture reproduces Loading-only view when not using `?uiCapture=1` (expected, canvas screenshot only). UI overlay renders correctly in uiCapture mode.
+- Added a guard to ensure title screen is visible on init when not in a run: `UI._ensureMenuVisible()`.
+- Removed `position: relative` from `#title-screen` to avoid any stacking/positioning oddities with overlay layers.
+
+Tests (2026-02-11):
+- Playwright: `node $WEB_GAME_CLIENT --url "http://127.0.0.1:5173" --actions-file $WEB_GAME_ACTIONS --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-blank-check`
+- Playwright: `node $WEB_GAME_CLIENT --url "http://127.0.0.1:5173?uiCapture=1" --actions-file $WEB_GAME_ACTIONS --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-ensure-menu`
+
+Notes (2026-02-11):
+- Title page updated to feel more like a game menu: removed section labels (Command Center, kicker, tips), tightened copy, and turned feature blocks into pill badges.
+- Increased button sizes substantially for Play/Shop/Stats to emphasize a game-title CTA stack.
+
+Tests (2026-02-11):
+- Playwright: `node $WEB_GAME_CLIENT --url "http://127.0.0.1:5173?uiCapture=1" --actions-file $WEB_GAME_ACTIONS --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-title-buttons`
+
+Notes (2026-02-11):
+- Refined title screen to lean into classic game start screens: bold sci-fi title font, reduced copy, right-anchored CTA stack, and added a subtle "Press Enter / Click" prompt.
+- Repositioned layout to a two-column hero/actions split and removed feature pills for a cleaner title presentation.
+- Increased button sizes again and tightened CTA grouping to keep focus on Play.
+
+Tests (2026-02-11):
+- Playwright: `node $WEB_GAME_CLIENT --url "http://127.0.0.1:5173?uiCapture=1" --actions-file $WEB_GAME_ACTIONS --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-title-inspo-4`
+
+Notes (2026-02-11):
+- Title screen refined toward clean, console-style start screen: removed feature pills, tightened copy to two short lines, added "Press Enter / Click" prompt, and emphasized large logo + minimal CTA stack.
+- Layout now uses a simple hero/actions split with more negative space; buttons sized up further.
+
+Tests (2026-02-11):
+- Playwright: `node $WEB_GAME_CLIENT --url "http://127.0.0.1:5173?uiCapture=1" --actions-file $WEB_GAME_ACTIONS --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-title-inspo-4b`
+
+Notes (2026-02-11):
+- Removed Codex button from title screen per request and ensured title/menu layout prevents overlap by switching to a flex-based title panel.
+- Title now splits cleanly into two lines via dedicated spans and the Stats button always reads "Stats" (locked state still dimmed).
+
+Tests (2026-02-11):
+- Playwright: `node $WEB_GAME_CLIENT --url "http://127.0.0.1:5173?uiCapture=1" --actions-file $WEB_GAME_ACTIONS --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-title-clean-5`
+
+Notes (2026-02-11):
+- Shop Modes now use a large left-side icon (final boss portrait) like towers, and replaced the oversized Final Boss pill with compact mode info (waves/elite/boss cadence).
+- Modes without a final boss show a generic infinity icon.
+
+Tests (2026-02-11):
+- Playwright: `node $WEB_GAME_CLIENT --url "http://127.0.0.1:5173?uiCapture=1" --actions-file $WEB_GAME_ACTIONS --click-selector "#shop-open" --iterations 1 --pause-ms 300 --screenshot-dir /Users/dylantanenbaum/Documents/TowerDefenseGPT/output/web-game-shop-modes-icon`
+
+Notes (2026-02-11):
+- Bosses now pause movement while an ability is winding up (pending abilities), resuming once the cast fires.
+
+Tests (2026-02-11):
+- Playwright: `node $WEB_GAME_CLIENT --url "http://127.0.0.1:5173?voidPhaseTest=1" --actions-file /tmp/td-actions-boss-ability.json --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-boss-ability-pause`
+  - Note: default click-selector flow failed because `#start-btn` is on the setup screen; ran voidPhaseTest without clicking.
+
+Notes (2026-02-11):
+- Added a Themes pill next to Saves on the title screen. When locked, it uses the same disabled treatment as other locked tabs and opens Shop with a lock notice. When unlocked, it opens Settings and scrolls to the Theme selector.
+
+Tests (2026-02-11):
+- Playwright: `node $WEB_GAME_CLIENT --url "http://127.0.0.1:5173?uiCapture=1" --actions-file $WEB_GAME_ACTIONS --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-themes-pill`

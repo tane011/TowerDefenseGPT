@@ -25,6 +25,8 @@ export class Projectile {
     this.chain = opts.chain ? { ...opts.chain } : null; // { maxJumps, range, falloff }
     this.bonusTags = opts.bonusTags ? [...opts.bonusTags] : null;
     this.bonusMult = opts.bonusMult ?? 1;
+    this.executeThreshold = typeof opts.executeThreshold === "number" ? opts.executeThreshold : null;
+    this.executeMult = typeof opts.executeMult === "number" ? opts.executeMult : null;
     this._dead = false;
   }
 

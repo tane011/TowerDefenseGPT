@@ -5,89 +5,167 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TowerDefenseGPT</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="./style.css?v=20260204g" />
+    <link rel="stylesheet" href="./style.css?v=20260211a" />
   </head>
   <body>
     <div id="layout">
       <div id="game-area">
+        <canvas id="boss-canvas" class="boss-canvas is-hidden" width="960" height="128"></canvas>
         <canvas id="game-canvas" width="960" height="540"></canvas>
 
-        <div id="start-screen" class="overlay">
-          <div class="panel">
-            <h1>TowerDefenseGPT</h1>
-            <p class="muted">
-              Place towers on build tiles, stop enemies from reaching the base.
-              Branch upgrades and status effects create synergies.
-            </p>
-
-            <div class="row">
-              <label for="map-select">Map</label>
-              <select id="map-select"></select>
+        <div id="title-screen" class="overlay">
+          <div class="panel title-panel">
+            <div class="home-hero">
+              <div class="title-icon"></div>
+              <div class="home-hero-text">
+                <h1 class="home-title" aria-label="TowerDefenseGPT">
+                  <span class="home-title-line">TowerDefense</span>
+                  <span class="home-title-line">GPT</span>
+                </h1>
+                <p class="muted home-tagline">Build. Adapt. Hold the line.</p>
+                <div class="home-subline muted small">Defend the frontier. Unlock towers. Master the waves.</div>
+              </div>
             </div>
-            <canvas id="map-preview" width="260" height="150"></canvas>
-
-            <div class="row">
-              <label for="mode-select">Mode</label>
-              <select id="mode-select"></select>
-            </div>
-            <div id="mode-desc" class="muted small"></div>
-
-            <div class="modifiers">
-              <div class="mod-header">
-                <div class="mod-title">Modifiers</div>
-                <div class="mod-actions">
-                  <button id="modifier-random-btn" class="ghost">Randomize</button>
-                  <button id="modifier-all-btn" class="ghost">Add All</button>
-                  <button id="modifier-clear-btn" class="ghost">Clear</button>
+            <div class="home-actions-panel">
+              <div class="home-actions-card">
+                <div class="home-actions">
+                  <button id="open-setup" class="primary play-btn">Play</button>
+                </div>
+                <div class="home-actions home-actions-secondary">
+                  <button id="shop-open" class="ghost shop-btn" type="button">Shop</button>
+                  <button id="stats-open" class="ghost stats-btn" type="button">Stats</button>
+                  <button id="codex-open" class="ghost codex-btn" type="button">Codex</button>
+                </div>
+                <div class="home-links">
+                  <button id="tutorial-btn" class="ghost corner-btn">Tutorial</button>
+                  <button id="settings-open" class="ghost corner-btn" type="button">Settings</button>
+                  <button id="themes-open" class="ghost corner-btn" type="button">Themes</button>
+                  <button id="saves-open" class="ghost corner-btn" type="button">Saves Manager</button>
                 </div>
               </div>
-              <div id="modifier-count" class="muted small"></div>
-              <div id="modifier-list" class="modifier-list"></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="setup-screen" class="overlay hidden">
+          <div class="panel setup-panel">
+            <div class="setup-header">
+              <div>
+                <h2>Plan Your Run</h2>
+                <p class="muted small">Choose your battleground, mode, and modifiers.</p>
+              </div>
+              <div class="setup-actions">
+                <button id="setup-back" class="ghost" type="button">Back</button>
+              </div>
             </div>
 
-            <div class="controls">
-              <div class="kbd">
-                <span>Click</span>
-                <code>Place / Select</code>
+            <div class="setup-grid">
+              <div class="setup-card map-card">
+                <h3>Map</h3>
+                <div class="row">
+                  <label for="map-select">Map</label>
+                  <select id="map-select"></select>
+                </div>
+                <canvas id="map-preview" width="260" height="150"></canvas>
+                <div class="row custom-map-row">
+                  <label>Custom Maps</label>
+                  <div class="custom-map-controls">
+                    <button id="custom-map-open" class="ghost" type="button">Create / Manage</button>
+                    <span id="custom-map-count" class="muted small"></span>
+                  </div>
+                </div>
               </div>
-              <div class="kbd">
-                <span>Right‑Click</span>
-                <code>Cancel</code>
-              </div>
-              <div class="kbd">
-                <span>Space</span>
-                <code>Start Next Wave</code>
-              </div>
-              <div class="kbd">
-                <span>P</span>
-                <code>Pause</code>
-              </div>
-              <div class="kbd">
-                <span>Q</span>
-                <code>Quick Sell</code>
-              </div>
-              <div class="kbd">
-                <span>H</span>
-                <code>Tutorial</code>
-              </div>
-              <div class="kbd">
-                <span>F</span>
-                <code>Fullscreen</code>
-              </div>
-              <div class="kbd">
-                <span>Esc</span>
-                <code>Cancel Build</code>
+
+              <div class="setup-stack">
+                <div class="setup-card mode-card">
+                  <h3>Mode</h3>
+                  <div class="row">
+                    <label for="mode-select">Mode</label>
+                    <select id="mode-select"></select>
+                  </div>
+                  <div class="row custom-mode-row">
+                    <label>Custom Modes</label>
+                    <div class="custom-mode-controls">
+                      <button id="custom-mode-open" class="ghost" type="button">Create / Manage</button>
+                      <span id="custom-mode-count" class="muted small"></span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="setup-card run-card">
+                  <h3>Run Intel</h3>
+                  <div class="run-line">
+                    <span class="label">Mode</span>
+                    <span id="run-mode-name" class="value">-</span>
+                  </div>
+                  <div id="mode-badge" class="mode-badge hidden"></div>
+                  <div id="mode-desc" class="muted small"></div>
+                  <div class="run-stats">
+                    <div class="run-stat">
+                      <span class="label">Waves</span>
+                      <span id="run-waves" class="value">-</span>
+                    </div>
+                    <div class="run-stat">
+                      <span class="label">Elites</span>
+                      <span id="run-elites" class="value">-</span>
+                    </div>
+                    <div class="run-stat">
+                      <span class="label">Bosses</span>
+                      <span id="run-bosses" class="value">-</span>
+                    </div>
+                    <div class="run-stat">
+                      <span class="label">Start Cash</span>
+                      <span id="run-start-cash" class="value">-</span>
+                    </div>
+                    <div class="run-stat">
+                      <span class="label">Start Lives</span>
+                      <span id="run-start-lives" class="value">-</span>
+                    </div>
+                    <div class="run-stat">
+                      <span class="label">Wave Pace</span>
+                      <span id="run-interval" class="value">-</span>
+                    </div>
+                    <div class="run-stat">
+                      <span class="label">Enemy HP</span>
+                      <span id="run-hp" class="value">-</span>
+                    </div>
+                    <div class="run-stat">
+                      <span class="label">Elite Power</span>
+                      <span id="run-elite-power" class="value">-</span>
+                    </div>
+                    <div class="run-stat">
+                      <span class="label">Boss Power</span>
+                      <span id="run-boss-power" class="value">-</span>
+                    </div>
+                    <div class="run-stat">
+                      <span class="label">Coins</span>
+                      <span id="run-coin-mult" class="value">x1.00</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
+
+            <details class="dropdown modifiers-dropdown">
+              <summary>
+                <span class="dropdown-title">Modifiers</span>
+                <span id="modifier-count" class="dropdown-hint muted small"></span>
+              </summary>
+              <div class="mod-actions global-mod-actions">
+                <span class="mod-actions-label">All Modifiers</span>
+                <button id="modifier-random-btn" class="ghost">Randomize</button>
+                <button id="modifier-all-btn" class="ghost">Add All</button>
+                <button id="modifier-clear-btn" class="ghost">Clear</button>
+              </div>
+              <div id="modifier-list" class="modifier-list"></div>
+              <div id="modifier-locked" class="modifier-locked muted small hidden">
+                Locked — unlock Modifier Access in the Shop, then purchase modifiers individually.
+              </div>
+            </details>
 
             <div class="start-actions">
               <button id="start-btn" class="primary">Start Run</button>
-              <button id="tutorial-btn" class="ghost">Tutorial</button>
             </div>
-            <p class="muted small">
-              Tip: Try combining <b>Frost</b> slows with <b>Cannon</b> splash, or
-              <b>Alchemist</b> armor shred with <b>Archer</b> crits.
-            </p>
           </div>
         </div>
 
@@ -95,7 +173,783 @@
           <div class="panel">
             <h2 id="game-over-title">Game Over</h2>
             <p id="game-over-reason" class="muted"></p>
+            <div id="game-over-coins" class="game-over-coins"></div>
             <button id="restart-btn" class="primary">Restart</button>
+          </div>
+        </div>
+
+        <div id="shop-screen" class="overlay hidden">
+          <div class="panel shop-panel">
+            <div class="shop-header">
+              <div class="shop-heading">
+                <h2>Shop</h2>
+                <p class="muted small">Unlock towers, maps, modes, and features with Coins.</p>
+              </div>
+              <div class="shop-meta">
+                <div class="coin-pill coin-pill--shop">
+                  <span class="label">Coins</span>
+                  <span id="shop-coin-count" class="value">0</span>
+                </div>
+                <button id="shop-close" class="ghost" type="button">Close</button>
+              </div>
+            </div>
+            <div class="shop-tabs">
+              <button class="shop-tab" data-shop-tab="Towers" type="button">Towers</button>
+              <button class="shop-tab" data-shop-tab="Maps" type="button">Maps</button>
+              <button class="shop-tab" data-shop-tab="Modes" type="button">Modes</button>
+              <button class="shop-tab" data-shop-tab="Modifiers" type="button">Modifiers</button>
+              <button class="shop-tab" data-shop-tab="Features" type="button">Features</button>
+            </div>
+            <div id="shop-status" class="muted small"></div>
+            <div id="shop-list" class="shop-list"></div>
+          </div>
+        </div>
+
+        <div id="settings-screen" class="overlay hidden">
+          <div class="panel settings-panel">
+            <div class="settings-header">
+              <div>
+                <h2>Settings</h2>
+                <p class="muted small">Tune visuals, controls, and quality-of-life options.</p>
+              </div>
+              <button id="settings-close" class="ghost" type="button">Close</button>
+            </div>
+            <div class="settings-list">
+              <div class="settings-subtitle">Gameplay</div>
+              <label class="setting-item">
+                <input id="setting-auto-waves" type="checkbox" />
+                <span>Auto‑start waves by default</span>
+              </label>
+              <label class="setting-item">
+                <input id="setting-keep-build" type="checkbox" />
+                <span>Keep build mode active after placement</span>
+              </label>
+              <label class="setting-item">
+                <input id="setting-auto-select" type="checkbox" />
+                <span>Auto‑select newly built towers</span>
+              </label>
+              <label class="setting-item">
+                <input id="setting-pause-wave-end" type="checkbox" />
+                <span>Auto‑pause after each wave ends</span>
+              </label>
+              <label class="setting-item">
+                <input id="setting-pause-boss" type="checkbox" />
+                <span>Auto‑pause when a boss wave starts</span>
+              </label>
+              <div class="settings-subtitle">Visuals</div>
+              <label class="setting-item">
+                <input id="setting-show-ranges" type="checkbox" />
+                <span>Show all tower ranges</span>
+              </label>
+              <label class="setting-item">
+                <input id="setting-show-auras" type="checkbox" />
+                <span>Show support aura rings</span>
+              </label>
+              <label class="setting-item">
+                <input id="setting-reduce-vfx" type="checkbox" />
+                <span>Reduce VFX intensity</span>
+              </label>
+              <div class="settings-subtitle">Accessibility</div>
+              <label class="setting-item">
+                <input id="setting-reduce-motion" type="checkbox" />
+                <span>Reduce motion (less bobbing)</span>
+              </label>
+              <label class="setting-item">
+                <input id="setting-disable-animations" type="checkbox" />
+                <span>Disable screen animations</span>
+              </label>
+              <div class="settings-subtitle">Premium</div>
+              <label class="setting-item">
+                <input id="setting-cinematic-ui" type="checkbox" />
+                <span>Cinematic UI (hide HUD)</span>
+              </label>
+              <label class="setting-item">
+                <select id="setting-theme">
+                  <option value="default">Default</option>
+                  <option value="ember">Ember</option>
+                  <option value="aurora">Aurora</option>
+                  <option value="cinder">Cinder</option>
+                </select>
+                <span>Theme palette</span>
+              </label>
+              <div class="settings-subtitle">HUD</div>
+              <label class="setting-item">
+                <input id="setting-show-grid" type="checkbox" />
+                <span>Show grid overlay</span>
+              </label>
+              <label class="setting-item">
+                <input id="setting-show-decor" type="checkbox" />
+                <span>Show map decorations</span>
+              </label>
+              <label class="setting-item">
+                <input id="setting-show-path-glow" type="checkbox" />
+                <span>Show path glow</span>
+              </label>
+              <label class="setting-item">
+                <input id="setting-show-vignette" type="checkbox" />
+                <span>Show vignette</span>
+              </label>
+              <label class="setting-item">
+                <input id="setting-show-projectiles" type="checkbox" />
+                <span>Show projectiles</span>
+              </label>
+              <label class="setting-item">
+                <input id="setting-show-enemy-hp" type="checkbox" />
+                <span>Show enemy health bars</span>
+              </label>
+              <label class="setting-item">
+                <input id="setting-show-ally-hp" type="checkbox" />
+                <span>Show ally health bars</span>
+              </label>
+              <label class="setting-item">
+                <input id="setting-show-status-glyphs" type="checkbox" />
+                <span>Show status glyphs</span>
+              </label>
+              <label class="setting-item">
+                <input id="setting-show-status-auras" type="checkbox" />
+                <span>Show status auras</span>
+              </label>
+              <label class="setting-item">
+                <input id="setting-show-boss-rings" type="checkbox" />
+                <span>Show boss rings</span>
+              </label>
+              <label class="setting-item">
+                <input id="setting-show-boss-bar" type="checkbox" />
+                <span>Show boss bar</span>
+              </label>
+              <label class="setting-item">
+                <input id="setting-reset-defaults" type="button" />
+                <span>Reset settings to defaults</span>
+              </label>
+              <label class="setting-item">
+                <input id="setting-reset-coachmarks" type="button" />
+                <span>Reset tutorial tips</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div id="saves-screen" class="overlay hidden">
+          <div class="panel saves-panel">
+            <div class="saves-header">
+              <div>
+                <h2>Saves Manager</h2>
+                <p class="muted small">Manage save files and debug profiles.</p>
+              </div>
+              <button id="saves-close" class="ghost" type="button">Close</button>
+            </div>
+            <div class="saves-toolbar">
+              <input id="save-name-input" class="ghost" type="text" placeholder="Save name" />
+              <button id="save-run-btn" class="primary" type="button">Save Run</button>
+              <button id="save-profile-btn" class="ghost" type="button">Save Profile</button>
+              <button id="export-saves-btn" class="ghost" type="button">Export JSON</button>
+              <button id="import-saves-btn" class="ghost" type="button">Import JSON</button>
+              <input id="import-saves-input" class="hidden" type="file" accept="application/json,.json" />
+            </div>
+            <div id="saves-status" class="muted small"></div>
+            <div id="saves-list" class="saves-list"></div>
+          </div>
+        </div>
+
+        <div id="stats-screen" class="overlay hidden">
+          <div class="panel stats-panel">
+            <div class="stats-header">
+              <div>
+                <h2>Run Stats</h2>
+                <p class="muted small">Your long-term performance and coin flow.</p>
+              </div>
+              <button id="stats-close" class="ghost" type="button">Close</button>
+            </div>
+            <div id="stats-locked" class="stats-locked muted small hidden">
+              Locked — unlock Stats Charts in the Shop.
+            </div>
+            <div id="stats-body" class="stats-body">
+              <div class="stats-grid">
+                <div class="stats-cell">
+                  <span class="label">Runs</span>
+                  <span id="stats-runs" class="value">0</span>
+                </div>
+                <div class="stats-cell">
+                  <span class="label">Victories</span>
+                  <span id="stats-victories" class="value">0</span>
+                </div>
+                <div class="stats-cell">
+                  <span class="label">Waves Cleared</span>
+                  <span id="stats-waves" class="value">0</span>
+                </div>
+                <div class="stats-cell">
+                  <span class="label">Coins Earned</span>
+                  <span id="stats-coins" class="value">0</span>
+                </div>
+              </div>
+              <div class="stats-section">
+                <div class="stats-section-title">Advanced Performance</div>
+                <div class="stats-grid stats-grid-advanced">
+                  <div class="stats-cell">
+                    <span class="label">Win Rate</span>
+                    <span id="stats-win-rate" class="value">-</span>
+                  </div>
+                  <div class="stats-cell">
+                    <span class="label">Avg Waves / Run</span>
+                    <span id="stats-avg-waves" class="value">-</span>
+                  </div>
+                  <div class="stats-cell">
+                    <span class="label">Avg Coins / Run</span>
+                    <span id="stats-avg-coins" class="value">-</span>
+                  </div>
+                  <div class="stats-cell">
+                    <span class="label">Best Waves</span>
+                    <span id="stats-best-waves" class="value">-</span>
+                  </div>
+                  <div class="stats-cell">
+                    <span class="label">Best Coins</span>
+                    <span id="stats-best-coins" class="value">-</span>
+                  </div>
+                  <div class="stats-cell">
+                    <span class="label">Current Win Streak</span>
+                    <span id="stats-current-streak" class="value">-</span>
+                  </div>
+                  <div class="stats-cell">
+                    <span class="label">Longest Win Streak</span>
+                    <span id="stats-longest-streak" class="value">-</span>
+                  </div>
+                </div>
+              </div>
+              <div class="stats-section">
+                <div class="stats-section-title">Combat Metrics</div>
+                <div class="stats-grid stats-grid-advanced">
+                  <div class="stats-cell">
+                    <span class="label">Total Damage</span>
+                    <span id="stats-total-damage" class="value">-</span>
+                  </div>
+                  <div class="stats-cell">
+                    <span class="label">Total Kills</span>
+                    <span id="stats-total-kills" class="value">-</span>
+                  </div>
+                  <div class="stats-cell">
+                    <span class="label">Total Time</span>
+                    <span id="stats-total-time" class="value">-</span>
+                  </div>
+                  <div class="stats-cell">
+                    <span class="label">Avg Damage / Run</span>
+                    <span id="stats-avg-damage" class="value">-</span>
+                  </div>
+                  <div class="stats-cell">
+                    <span class="label">Avg Kills / Run</span>
+                    <span id="stats-avg-kills" class="value">-</span>
+                  </div>
+                  <div class="stats-cell">
+                    <span class="label">Avg Time / Run</span>
+                    <span id="stats-avg-time" class="value">-</span>
+                  </div>
+                  <div class="stats-cell">
+                    <span class="label">Best Damage</span>
+                    <span id="stats-best-damage" class="value">-</span>
+                  </div>
+                  <div class="stats-cell">
+                    <span class="label">Best Kills</span>
+                    <span id="stats-best-kills" class="value">-</span>
+                  </div>
+                  <div class="stats-cell">
+                    <span class="label">Longest Run</span>
+                    <span id="stats-best-time" class="value">-</span>
+                  </div>
+                </div>
+              </div>
+              <div class="stats-section">
+                <div class="stats-section-title">Recent Form (Last 5 Runs)</div>
+                <div class="stats-grid stats-grid-advanced">
+                  <div class="stats-cell">
+                    <span class="label">Win Rate</span>
+                    <span id="stats-recent-win-rate" class="value">-</span>
+                  </div>
+                  <div class="stats-cell">
+                    <span class="label">Avg Waves</span>
+                    <span id="stats-recent-avg-waves" class="value">-</span>
+                  </div>
+                  <div class="stats-cell">
+                    <span class="label">Avg Coins</span>
+                    <span id="stats-recent-avg-coins" class="value">-</span>
+                  </div>
+                </div>
+              </div>
+              <div class="stats-section">
+                <div class="stats-section-title">Last Run</div>
+                <div class="stats-grid stats-grid-advanced">
+                  <div class="stats-cell wide">
+                    <span class="label">Summary</span>
+                    <span id="stats-last-run" class="value long">No runs recorded yet.</span>
+                  </div>
+                </div>
+              </div>
+              <div class="stats-chart-wrap">
+                <div class="stats-chart-title">Recent Runs</div>
+                <div id="stats-chart" class="stats-chart"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="codex-screen" class="overlay hidden">
+          <div class="panel codex-panel">
+            <div class="codex-header">
+              <div>
+                <h2>Field Codex</h2>
+                <p class="muted small">Intel on towers, enemies, and final bosses.</p>
+              </div>
+              <button id="codex-close" class="ghost" type="button">Close</button>
+            </div>
+            <div id="codex-locked" class="codex-locked muted small hidden">
+              Locked — unlock Tower &amp; Enemy Codex in the Shop.
+            </div>
+            <div id="codex-body" class="codex-body">
+              <div class="codex-tabs">
+                <button class="codex-tab" data-codex-tab="Towers" type="button">Towers</button>
+                <button class="codex-tab" data-codex-tab="Enemies" type="button">Enemies</button>
+                <button class="codex-tab" data-codex-tab="Bosses" type="button">Bosses</button>
+              </div>
+              <div id="codex-list" class="codex-list"></div>
+            </div>
+            <div id="codex-detail" class="codex-detail hidden">
+              <div class="codex-detail-card">
+                <div class="codex-detail-header">
+                  <div class="codex-detail-title">
+                    <div id="codex-detail-name" class="codex-detail-name"></div>
+                    <div id="codex-detail-sub" class="codex-detail-sub muted"></div>
+                  </div>
+                  <button id="codex-detail-close" class="ghost" type="button">Close</button>
+                </div>
+                <div id="codex-detail-body" class="codex-detail-body"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="custom-mode-screen" class="overlay hidden">
+          <div class="panel custom-mode-panel">
+            <div class="custom-mode-header">
+              <div>
+                <h2>Custom Mode Creator</h2>
+                <p class="muted small">Build a bespoke run with custom waves, rewards, and enemy pools.</p>
+              </div>
+              <button id="custom-mode-close" class="ghost" type="button">Close</button>
+            </div>
+
+            <div class="custom-mode-toolbar">
+              <label for="custom-mode-select">Saved Modes</label>
+              <select id="custom-mode-select"></select>
+              <button id="custom-mode-new" class="ghost" type="button">New</button>
+              <button id="custom-mode-delete" class="ghost danger" type="button">Delete</button>
+            </div>
+            <div id="custom-mode-status" class="muted small"></div>
+            <div id="custom-mode-warnings" class="custom-mode-warnings hidden"></div>
+
+            <div class="custom-mode-toolbar custom-mode-toolbar-secondary">
+              <label for="custom-mode-template">Template</label>
+              <select id="custom-mode-template"></select>
+              <button id="custom-mode-load-template" class="ghost" type="button">Load</button>
+              <button id="custom-mode-reset" class="ghost" type="button">Reset Form</button>
+            </div>
+
+            <details class="dropdown custom-mode-section" open>
+              <summary>
+                <span class="dropdown-title">Basics</span>
+                <span class="dropdown-hint muted small">Identity, waves, and map pairing</span>
+              </summary>
+              <div class="custom-mode-grid">
+                <label class="custom-field">
+                  <span>Name</span>
+                  <input id="custom-mode-name" type="text" placeholder="My Mode" />
+                </label>
+                <label class="custom-field full">
+                  <span>Description</span>
+                  <textarea id="custom-mode-description" rows="2" placeholder="Describe the feel of this mode."></textarea>
+                </label>
+                <label class="custom-field">
+                  <span>Total Waves (0 = Endless)</span>
+                  <input id="custom-mode-total-waves" type="number" min="0" step="1" />
+                </label>
+                <label class="custom-field">
+                  <span>Elite Every (0 = Off)</span>
+                  <input id="custom-mode-elite-every" type="number" min="0" step="1" />
+                </label>
+                <label class="custom-field">
+                  <span>Boss Every (0 = Off)</span>
+                  <input id="custom-mode-boss-every" type="number" min="0" step="1" />
+                </label>
+                <label class="custom-field">
+                  <span>Final Boss (last wave)</span>
+                  <select id="custom-mode-final-boss"></select>
+                </label>
+                <label class="custom-field">
+                  <span>Recommended Map</span>
+                  <select id="custom-mode-recommended-map"></select>
+                </label>
+                <label class="custom-field">
+                  <span>Required Map (locks)</span>
+                  <select id="custom-mode-required-map"></select>
+                </label>
+              </div>
+            </details>
+
+            <details class="dropdown custom-mode-section">
+              <summary>
+                <span class="dropdown-title">Start Bonuses</span>
+                <span class="dropdown-hint muted small">Starting money/lives modifiers</span>
+              </summary>
+              <div class="custom-mode-grid">
+                <label class="custom-field">
+                  <span>Money Add</span>
+                  <input id="custom-mode-start-money-add" type="number" step="1" />
+                </label>
+                <label class="custom-field">
+                  <span>Money Multiplier</span>
+                  <input id="custom-mode-start-money-mul" type="number" step="0.01" />
+                </label>
+                <label class="custom-field">
+                  <span>Lives Add</span>
+                  <input id="custom-mode-start-lives-add" type="number" step="1" />
+                </label>
+                <label class="custom-field">
+                  <span>Lives Multiplier</span>
+                  <input id="custom-mode-start-lives-mul" type="number" step="0.01" />
+                </label>
+              </div>
+            </details>
+
+            <details class="dropdown custom-mode-section" open>
+              <summary>
+                <span class="dropdown-title">Difficulty Scaling</span>
+                <span class="dropdown-hint muted small">Budgets, HP curves, elites, bosses</span>
+              </summary>
+              <div class="custom-mode-grid">
+                <label class="custom-field">
+                  <span>Budget Multiplier</span>
+                  <input id="custom-mode-budget-mul" type="number" step="0.01" />
+                </label>
+                <label class="custom-field">
+                  <span>Interval Multiplier</span>
+                  <input id="custom-mode-interval-mul" type="number" step="0.01" />
+                </label>
+                <label class="custom-field">
+                  <span>Elite Multiplier</span>
+                  <input id="custom-mode-elite-mult" type="number" step="0.01" />
+                </label>
+                <label class="custom-field">
+                  <span>Boss Multiplier</span>
+                  <input id="custom-mode-boss-mult" type="number" step="0.01" />
+                </label>
+                <label class="custom-field">
+                  <span>HP Multiplier</span>
+                  <input id="custom-mode-hp-mul" type="number" step="0.01" />
+                </label>
+                <label class="custom-field">
+                  <span>HP Scale per Wave</span>
+                  <input id="custom-mode-hp-scale" type="number" step="0.001" />
+                </label>
+                <label class="custom-field">
+                  <span>Late HP Start Wave</span>
+                  <input id="custom-mode-hp-late-start" type="number" step="1" />
+                </label>
+                <label class="custom-field">
+                  <span>Late HP Scale</span>
+                  <input id="custom-mode-hp-late-scale" type="number" step="0.001" />
+                </label>
+                <label class="custom-field">
+                  <span>Seen Shield Base</span>
+                  <input id="custom-mode-seen-shield-base" type="number" step="1" />
+                </label>
+                <label class="custom-field">
+                  <span>Seen Shield Scale</span>
+                  <input id="custom-mode-seen-shield-scale" type="number" step="0.1" />
+                </label>
+                <label class="custom-field">
+                  <span>Seen Shield Multiplier</span>
+                  <input id="custom-mode-seen-shield-mul" type="number" step="0.01" />
+                </label>
+                <label class="custom-field">
+                  <span>Final Boss Multiplier</span>
+                  <input id="custom-mode-final-boss-mult" type="number" step="0.01" />
+                </label>
+              </div>
+            </details>
+
+            <details class="dropdown custom-mode-section">
+              <summary>
+                <span class="dropdown-title">Rewards</span>
+                <span class="dropdown-hint muted small">Wave bonus tuning</span>
+              </summary>
+              <div class="custom-mode-grid">
+                <label class="custom-field">
+                  <span>Reward Bonus Multiplier</span>
+                  <input id="custom-mode-reward-bonus-mul" type="number" step="0.01" />
+                </label>
+                <label class="custom-field">
+                  <span>Reward Bonus Add</span>
+                  <input id="custom-mode-reward-bonus-add" type="number" step="1" />
+                </label>
+                <label class="custom-field">
+                  <span>Early Reward Waves</span>
+                  <input id="custom-mode-early-reward-waves" type="number" step="1" />
+                </label>
+                <label class="custom-field">
+                  <span>Early Reward Add</span>
+                  <input id="custom-mode-early-reward-add" type="number" step="1" />
+                </label>
+              </div>
+            </details>
+
+            <details class="dropdown custom-mode-section">
+              <summary>
+                <span class="dropdown-title">Early-Game Overrides</span>
+                <span class="dropdown-hint muted small">Optional early-wave scaling</span>
+              </summary>
+              <div class="custom-mode-grid">
+                <label class="custom-field">
+                  <span>Early Waves Length</span>
+                  <input id="custom-mode-early-waves" type="number" step="1" />
+                </label>
+                <label class="custom-field">
+                  <span>Early Budget Multiplier</span>
+                  <input id="custom-mode-early-budget-mul" type="number" step="0.01" />
+                </label>
+                <label class="custom-field">
+                  <span>Early Interval Multiplier</span>
+                  <input id="custom-mode-early-interval-mul" type="number" step="0.01" />
+                </label>
+                <label class="custom-field">
+                  <span>Early HP Multiplier</span>
+                  <input id="custom-mode-early-hp-mul" type="number" step="0.01" />
+                </label>
+                <label class="custom-field">
+                  <span>Early HP Scale Multiplier</span>
+                  <input id="custom-mode-early-hp-scale-mul" type="number" step="0.01" />
+                </label>
+                <label class="custom-field">
+                  <span>Early Elite Multiplier</span>
+                  <input id="custom-mode-early-elite-mult" type="number" step="0.01" />
+                </label>
+                <label class="custom-field">
+                  <span>Early Seen Shield Multiplier</span>
+                  <input id="custom-mode-early-seen-shield-mul" type="number" step="0.01" />
+                </label>
+              </div>
+            </details>
+
+            <details class="dropdown custom-mode-section">
+              <summary>
+                <span class="dropdown-title">Enemy Pools</span>
+                <span class="dropdown-hint muted small">Leave empty to use defaults</span>
+              </summary>
+              <div class="pool-block">
+                <div class="pool-title">Primary Enemies</div>
+                <div class="pool-header">
+                  <div>Enemy</div>
+                  <div>Weight</div>
+                  <div>Min</div>
+                  <div>Max</div>
+                  <div></div>
+                </div>
+                <div id="custom-mode-enemy-pool" class="pool-list"></div>
+                <button id="custom-mode-enemy-add" class="ghost" type="button">Add Enemy</button>
+              </div>
+              <div class="pool-block">
+                <div class="pool-title">Elite Pool</div>
+                <div class="pool-header">
+                  <div>Enemy</div>
+                  <div>Weight</div>
+                  <div>Min</div>
+                  <div>Max</div>
+                  <div></div>
+                </div>
+                <div id="custom-mode-elite-pool" class="pool-list"></div>
+                <button id="custom-mode-elite-add" class="ghost" type="button">Add Elite</button>
+              </div>
+              <div class="pool-block">
+                <div class="pool-title">Boss Pool</div>
+                <div class="pool-header">
+                  <div>Enemy</div>
+                  <div>Weight</div>
+                  <div>Min</div>
+                  <div>Max</div>
+                  <div></div>
+                </div>
+                <div id="custom-mode-boss-pool" class="pool-list"></div>
+                <button id="custom-mode-boss-add" class="ghost" type="button">Add Boss</button>
+              </div>
+            </details>
+
+            <details class="dropdown custom-mode-section">
+              <summary>
+                <span class="dropdown-title">Share / Import</span>
+                <span class="dropdown-hint muted small">Export JSON for sharing or import</span>
+              </summary>
+              <div class="custom-mode-grid">
+                <label class="custom-field full">
+                  <span>Mode JSON</span>
+                  <textarea id="custom-mode-json" rows="6" placeholder="Paste exported JSON here."></textarea>
+                </label>
+                <div class="custom-mode-actions">
+                  <button id="custom-mode-export" class="ghost" type="button">Export to JSON</button>
+                  <button id="custom-mode-copy" class="ghost" type="button">Copy to Clipboard</button>
+                  <button id="custom-mode-import" class="ghost" type="button">Import JSON</button>
+                </div>
+              </div>
+            </details>
+
+            <div class="custom-mode-actions">
+              <button id="custom-mode-save" class="primary" type="button">Save Custom Mode</button>
+              <button id="custom-mode-save-copy" class="ghost" type="button">Save as New</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="custom-map-screen" class="overlay hidden">
+          <div class="panel custom-map-panel">
+            <div class="custom-map-header">
+              <div>
+                <h2>Custom Map Creator</h2>
+                <p class="muted small">Design a new battlefield with custom paths and decor.</p>
+              </div>
+              <button id="custom-map-close" class="ghost" type="button">Close</button>
+            </div>
+
+            <div class="custom-map-toolbar">
+              <label for="custom-map-select">Saved Maps</label>
+              <select id="custom-map-select"></select>
+              <button id="custom-map-new" class="ghost" type="button">New</button>
+              <button id="custom-map-delete" class="ghost danger" type="button">Delete</button>
+            </div>
+            <div id="custom-map-status" class="muted small"></div>
+            <div id="custom-map-warnings" class="custom-mode-warnings hidden"></div>
+
+            <div class="custom-map-toolbar custom-map-toolbar-secondary">
+              <label for="custom-map-template">Template</label>
+              <select id="custom-map-template"></select>
+              <button id="custom-map-load-template" class="ghost" type="button">Load</button>
+              <button id="custom-map-reset" class="ghost" type="button">Reset Form</button>
+            </div>
+
+            <details class="dropdown custom-map-section" open>
+              <summary>
+                <span class="dropdown-title">Basics</span>
+                <span class="dropdown-hint muted small">Grid size, start values, base</span>
+              </summary>
+              <div class="custom-mode-grid">
+                <label class="custom-field">
+                  <span>Name</span>
+                  <input id="custom-map-name" type="text" placeholder="My Map" />
+                </label>
+                <label class="custom-field">
+                  <span>Columns</span>
+                  <input id="custom-map-cols" type="number" min="8" step="1" />
+                </label>
+                <label class="custom-field">
+                  <span>Rows</span>
+                  <input id="custom-map-rows" type="number" min="6" step="1" />
+                </label>
+                <label class="custom-field">
+                  <span>Tile Size</span>
+                  <input id="custom-map-tile-size" type="number" min="20" step="1" />
+                </label>
+                <label class="custom-field">
+                  <span>Starting Money</span>
+                  <input id="custom-map-start-money" type="number" min="0" step="5" />
+                </label>
+                <label class="custom-field">
+                  <span>Starting Lives</span>
+                  <input id="custom-map-start-lives" type="number" min="1" step="1" />
+                </label>
+                <label class="custom-field">
+                  <span>Base X</span>
+                  <input id="custom-map-base-x" type="number" min="0" step="1" />
+                </label>
+                <label class="custom-field">
+                  <span>Base Y</span>
+                  <input id="custom-map-base-y" type="number" min="0" step="1" />
+                </label>
+              </div>
+            </details>
+
+            <details class="dropdown custom-map-section" open>
+              <summary>
+                <span class="dropdown-title">Map Editor</span>
+                <span class="dropdown-hint muted small">Click tiles to add points</span>
+              </summary>
+              <div class="custom-map-editor">
+                <div class="custom-map-canvas-wrap">
+                  <canvas id="custom-map-canvas" width="520" height="300"></canvas>
+                  <div id="custom-map-cursor" class="muted small"></div>
+                </div>
+                <div class="custom-map-editor-controls">
+                  <div class="custom-mode-actions custom-map-tools">
+                    <button id="custom-map-tool-path" class="ghost" type="button">Add Points</button>
+                    <button id="custom-map-tool-base" class="ghost" type="button">Set Base</button>
+                    <button id="custom-map-tool-decor" class="ghost" type="button">Place Decor</button>
+                    <button id="custom-map-tool-erase" class="ghost danger" type="button">Erase</button>
+                    <button id="custom-map-snap" class="ghost" type="button">Snap Axis: On</button>
+                    <button id="custom-map-buildable" class="ghost" type="button">Buildable Overlay: Off</button>
+                  </div>
+
+                  <div class="custom-map-block">
+                    <div class="custom-map-block-title">Paths</div>
+                    <label class="custom-field">
+                      <span>Active Path</span>
+                      <select id="custom-map-path-select"></select>
+                    </label>
+                    <div class="custom-mode-actions">
+                      <button id="custom-map-fix" class="ghost" type="button">Validate & Auto-Fix</button>
+                      <button id="custom-map-path-add" class="ghost" type="button">Add Path</button>
+                      <button id="custom-map-path-remove" class="ghost danger" type="button">Remove Path</button>
+                      <button id="custom-map-path-undo" class="ghost" type="button">Undo Point</button>
+                      <button id="custom-map-path-clear" class="ghost" type="button">Clear Path</button>
+                    </div>
+                    <div id="custom-map-path-info" class="muted small"></div>
+                  </div>
+
+                  <div class="custom-map-block">
+                    <div class="custom-map-block-title">Decor</div>
+                    <label class="custom-field">
+                      <span>Type</span>
+                      <select id="custom-map-decor-type">
+                        <option value="tree">Tree</option>
+                        <option value="rock">Rock</option>
+                        <option value="ruin">Ruin</option>
+                        <option value="crystal">Crystal</option>
+                      </select>
+                    </label>
+                    <label class="custom-field">
+                      <span>Size</span>
+                      <input id="custom-map-decor-size" type="number" min="0.4" step="0.1" />
+                    </label>
+                    <button id="custom-map-decor-clear" class="ghost" type="button">Clear Decor</button>
+                  </div>
+                </div>
+              </div>
+            </details>
+
+            <details class="dropdown custom-map-section">
+              <summary>
+                <span class="dropdown-title">Share / Import</span>
+                <span class="dropdown-hint muted small">Export JSON for sharing or import</span>
+              </summary>
+              <div class="custom-mode-grid">
+                <label class="custom-field full">
+                  <span>Map JSON</span>
+                  <textarea id="custom-map-json" rows="6" placeholder="Paste exported JSON here."></textarea>
+                </label>
+                <div class="custom-mode-actions">
+                  <button id="custom-map-export" class="ghost" type="button">Export to JSON</button>
+                  <button id="custom-map-copy" class="ghost" type="button">Copy to Clipboard</button>
+                  <button id="custom-map-import" class="ghost" type="button">Import JSON</button>
+                </div>
+              </div>
+            </details>
+
+            <div class="custom-mode-actions">
+              <button id="custom-map-save" class="primary" type="button">Save Custom Map</button>
+              <button id="custom-map-save-copy" class="ghost" type="button">Save as New</button>
+            </div>
           </div>
         </div>
 
@@ -123,6 +977,84 @@
             <p class="muted small">Press <b>~</b> to toggle. Use for testing and sandbox tweaks.</p>
 
             <div class="admin-section">
+              <h3>Status</h3>
+              <div class="admin-metrics">
+                <div class="admin-metric">
+                  <span class="label">Map</span>
+                  <span id="admin-status-map" class="value">-</span>
+                </div>
+                <div class="admin-metric">
+                  <span class="label">Mode</span>
+                  <span id="admin-status-mode" class="value">-</span>
+                </div>
+                <div class="admin-metric">
+                  <span class="label">Wave</span>
+                  <span id="admin-status-wave" class="value">-</span>
+                </div>
+                <div class="admin-metric">
+                  <span class="label">Time</span>
+                  <span id="admin-status-time" class="value">-</span>
+                </div>
+                <div class="admin-metric">
+                  <span class="label">Threat</span>
+                  <span id="admin-status-threat" class="value">-</span>
+                </div>
+                <div class="admin-metric">
+                  <span class="label">Entities</span>
+                  <span id="admin-status-entities" class="value">-</span>
+                </div>
+                <div class="admin-metric">
+                  <span class="label">Sim</span>
+                  <span id="admin-status-sim" class="value">-</span>
+                </div>
+                <div class="admin-metric">
+                  <span class="label">Seed</span>
+                  <span id="admin-status-seed" class="value">-</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="admin-section">
+              <h3>Simulation</h3>
+              <div class="admin-controls">
+                <button id="admin-toggle-pause" class="ghost">Pause</button>
+                <button id="admin-toggle-auto" class="ghost">Auto Waves: Off</button>
+                <label class="admin-control">
+                  <span>Speed</span>
+                  <select id="admin-time-scale">
+                    <option value="0.25">0.25x</option>
+                    <option value="0.5">0.5x</option>
+                    <option value="1" selected>1x</option>
+                    <option value="1.5">1.5x</option>
+                    <option value="2">2x</option>
+                    <option value="3">3x</option>
+                    <option value="4">4x</option>
+                  </select>
+                </label>
+                <label class="admin-control admin-check">
+                  <input id="admin-invincible" type="checkbox" />
+                  <span>Base invincible</span>
+                </label>
+              </div>
+              <div class="admin-controls">
+                <label class="admin-control">
+                  <span>Set next wave</span>
+                  <input id="admin-wave-set" type="number" min="1" step="1" value="1" />
+                </label>
+                <label class="admin-control admin-check">
+                  <input id="admin-wave-clear" type="checkbox" checked />
+                  <span>Clear enemies + spawns</span>
+                </label>
+                <button id="admin-wave-apply" class="ghost">Apply</button>
+              </div>
+              <div class="admin-actions">
+                <button id="admin-force-wave" class="ghost">Force Complete Wave</button>
+                <button id="admin-force-wave-keep" class="ghost">Force Complete (Keep Enemies)</button>
+                <button id="admin-skip-boss" class="ghost">Skip Boss Wave</button>
+              </div>
+            </div>
+
+            <div class="admin-section">
               <h3>Resources</h3>
               <div class="admin-row">
                 <label for="admin-money-amount">Money</label>
@@ -142,14 +1074,20 @@
               <h3>Spawns</h3>
               <div class="admin-row">
                 <label for="admin-enemy-select">Enemy</label>
-                <select id="admin-enemy-select"></select>
+                <div class="admin-stack">
+                  <input id="admin-enemy-filter" type="text" placeholder="Filter enemies..." autocomplete="off" />
+                  <select id="admin-enemy-select"></select>
+                </div>
                 <input id="admin-enemy-count" type="number" min="1" step="1" value="5" />
                 <select id="admin-enemy-path"></select>
                 <button id="admin-enemy-spawn" class="ghost">Spawn</button>
               </div>
               <div class="admin-row">
                 <label for="admin-ally-select">Unit</label>
-                <select id="admin-ally-select"></select>
+                <div class="admin-stack">
+                  <input id="admin-ally-filter" type="text" placeholder="Filter units..." autocomplete="off" />
+                  <select id="admin-ally-select"></select>
+                </div>
                 <input id="admin-ally-count" type="number" min="1" step="1" value="3" />
                 <select id="admin-ally-path"></select>
                 <button id="admin-ally-spawn" class="ghost">Spawn</button>
@@ -195,10 +1133,22 @@
             <div class="admin-section">
               <h3>Quick Actions</h3>
               <div class="admin-actions">
+                <button id="admin-clear-towers" class="ghost">Clear Towers</button>
+                <button id="admin-clear-allies" class="ghost">Clear Allies</button>
                 <button id="admin-start-wave" class="ghost">Start Next Wave</button>
                 <button id="admin-clear-enemies" class="ghost">Clear Enemies</button>
                 <button id="admin-clear-projectiles" class="ghost">Clear Projectiles</button>
                 <button id="admin-reset-cooldowns" class="ghost">Reset Cooldowns</button>
+                <button id="admin-clear-all" class="ghost">Clear All</button>
+              </div>
+            </div>
+
+            <div class="admin-section">
+              <h3>Selection</h3>
+              <div class="admin-actions">
+                <button id="admin-max-selected" class="ghost">Max Selected</button>
+                <button id="admin-sell-selected" class="ghost">Sell Selected</button>
+                <button id="admin-dump-selected" class="ghost">Dump Selected Stats</button>
               </div>
             </div>
           </div>
@@ -278,6 +1228,7 @@
         <section class="card">
           <h3>Help</h3>
           <button id="tutorial-btn-alt" class="ghost">Open Tutorial (H)</button>
+          <button id="saves-open-alt" class="ghost">Saves Manager</button>
           <div class="help-keys">
             <div class="kbd">
               <span>Click</span>
@@ -320,6 +1271,10 @@
               <code>Tutorial</code>
             </div>
             <div class="kbd">
+              <span>C</span>
+              <code>Cinematic UI (Shop feature)</code>
+            </div>
+            <div class="kbd">
               <span>F</span>
               <code>Fullscreen</code>
             </div>
@@ -330,86 +1285,9 @@
           </div>
         </section>
 
-        <section class="card">
-          <h3>Settings</h3>
-          <div class="settings-list">
-            <label class="setting-item">
-              <input id="setting-auto-waves" type="checkbox" />
-              <span>Auto‑start waves by default</span>
-            </label>
-            <label class="setting-item">
-              <input id="setting-show-ranges" type="checkbox" />
-              <span>Show all tower ranges</span>
-            </label>
-            <label class="setting-item">
-              <input id="setting-show-auras" type="checkbox" />
-              <span>Show support aura rings</span>
-            </label>
-            <label class="setting-item">
-              <input id="setting-reduce-vfx" type="checkbox" />
-              <span>Reduce VFX intensity</span>
-            </label>
-            <div class="settings-subtitle">Advanced</div>
-            <label class="setting-item">
-              <input id="setting-reduce-motion" type="checkbox" />
-              <span>Reduce motion (less bobbing)</span>
-            </label>
-            <label class="setting-item">
-              <input id="setting-disable-animations" type="checkbox" />
-              <span>Disable screen animations</span>
-            </label>
-            <label class="setting-item">
-              <input id="setting-show-grid" type="checkbox" />
-              <span>Show grid overlay</span>
-            </label>
-            <label class="setting-item">
-              <input id="setting-show-decor" type="checkbox" />
-              <span>Show map decorations</span>
-            </label>
-            <label class="setting-item">
-              <input id="setting-show-path-glow" type="checkbox" />
-              <span>Show path glow</span>
-            </label>
-            <label class="setting-item">
-              <input id="setting-show-vignette" type="checkbox" />
-              <span>Show vignette</span>
-            </label>
-            <label class="setting-item">
-              <input id="setting-show-projectiles" type="checkbox" />
-              <span>Show projectiles</span>
-            </label>
-            <label class="setting-item">
-              <input id="setting-show-enemy-hp" type="checkbox" />
-              <span>Show enemy health bars</span>
-            </label>
-            <label class="setting-item">
-              <input id="setting-show-ally-hp" type="checkbox" />
-              <span>Show ally health bars</span>
-            </label>
-            <label class="setting-item">
-              <input id="setting-show-status-glyphs" type="checkbox" />
-              <span>Show status glyphs</span>
-            </label>
-            <label class="setting-item">
-              <input id="setting-show-status-auras" type="checkbox" />
-              <span>Show status aura rings</span>
-            </label>
-            <label class="setting-item">
-              <input id="setting-show-boss-rings" type="checkbox" />
-              <span>Show boss/elite rings</span>
-            </label>
-            <label class="setting-item">
-              <input id="setting-show-boss-bar" type="checkbox" />
-              <span>Show boss bar</span>
-            </label>
-          </div>
-          <div class="settings-actions">
-            <button id="setting-reset-coachmarks" class="ghost">Reset Tips</button>
-          </div>
-        </section>
       </aside>
     </div>
 
-    <script type="module" src="./src/main.js?v=20260204g"></script>
+    <script type="module" src="./src/main.js?v=20260211a"></script>
   </body>
 </html>

@@ -4,6 +4,8 @@ export class ProjectileSystem {
   update(dt, world) {
     const byId = new Map();
     for (const e of world.enemies) byId.set(e.id, e);
+    const towerById = new Map();
+    for (const t of world.towers || []) towerById.set(t.id, t);
 
     const keep = [];
     for (const p of world.projectiles) {
@@ -26,7 +28,7 @@ export class ProjectileSystem {
       const d = Math.sqrt(dx * dx + dy * dy);
       const step = p.speed * dt;
       if (d <= step + 0.1) {
-        this._impact(world, p, target?.alive ? target : null, tx, ty);
+        this._impact(world, p, target?.alive ? target : null, tx, ty, towerById);
         p.kill();
         continue;
       }
@@ -40,7 +42,8 @@ export class ProjectileSystem {
     world.projectiles = keep;
   }
 
-  _impact(world, p, target, ix, iy) {
+  _impact(world, p, target, ix, iy, towerById) {
+    const sourceTower = p.sourceTowerId ? towerById?.get(p.sourceTowerId) : null;
     const impacted = [];
     const hitIds = new Set();
 
@@ -55,8 +58,8 @@ export class ProjectileSystem {
     }
 
     for (const e of impacted) {
-      this._applyDamageWithBonuses(p, e, p.damage);
-      for (const fx of p.onHitEffects) e.applyEffect(fx);
+      this._applyDamageWithBonuses(p, e, p.damage, sourceTower);
+      for (const fx of p.onHitEffects) e.applyEffect(fx, p.sourceTowerId ?? null);
       hitIds.add(e.id);
     }
 
@@ -72,8 +75,8 @@ export class ProjectileSystem {
         const next = this._findChainTarget(world, current, range, hitIds);
         if (!next) break;
         damage *= falloff;
-        this._applyDamageWithBonuses(p, next, damage);
-        for (const fx of p.onHitEffects) next.applyEffect(fx);
+        this._applyDamageWithBonuses(p, next, damage, sourceTower);
+        for (const fx of p.onHitEffects) next.applyEffect(fx, p.sourceTowerId ?? null);
         hitIds.add(next.id);
         this._spawnZap(world, current.x, current.y, next.x, next.y, p.vfxColor);
         current = next;
@@ -88,7 +91,7 @@ export class ProjectileSystem {
     }
   }
 
-  _applyDamageWithBonuses(p, enemy, baseDamage) {
+  _applyDamageWithBonuses(p, enemy, baseDamage, sourceTower) {
     let dmg = baseDamage;
     if (p.bonusTags && p.bonusTags.length && enemy.tags) {
       for (const tag of p.bonusTags) {
@@ -98,7 +101,12 @@ export class ProjectileSystem {
         }
       }
     }
-    enemy.takeDamage(dmg, p.damageType);
+    if (p.executeThreshold != null && p.executeMult != null && enemy.maxHp > 0) {
+      const pct = enemy.hp / enemy.maxHp;
+      if (pct <= p.executeThreshold) dmg *= p.executeMult;
+    }
+    const result = enemy.takeDamage(dmg, p.damageType);
+    if (result?.dealt) sourceTower?.recordDamage?.(result.dealt);
   }
 
   _findChainTarget(world, from, range, hitIds) {

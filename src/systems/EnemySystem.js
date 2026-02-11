@@ -1,13 +1,16 @@
 import { clamp } from "../core/math.js";
 
+const DEFAULT_BOSS_ABILITY_CHANCE = 0.7;
+
 export class EnemySystem {
-  constructor({ createEnemy, awardMoney, damageBase, log, onFinalBossDeath, onBossLeak }) {
+  constructor({ createEnemy, awardMoney, damageBase, log, onFinalBossDeath, onBossLeak, onEnemyKilled }) {
     this._createEnemy = createEnemy;
     this._awardMoney = awardMoney;
     this._damageBase = damageBase;
     this._log = log;
     this._onFinalBossDeath = onFinalBossDeath;
     this._onBossLeak = onBossLeak;
+    this._onEnemyKilled = onEnemyKilled;
   }
 
   update(dt, world) {
@@ -20,6 +23,7 @@ export class EnemySystem {
 
       if (!enemy.alive) {
         this._awardMoney(enemy.reward);
+        this._onEnemyKilled?.(enemy);
         world.vfx?.push({
           type: "explosion",
           x: enemy.x,
@@ -51,9 +55,12 @@ export class EnemySystem {
       if (phaseShifted || phaseStage) {
         if (phaseStage === "start") {
           this._spawnPhaseShift(world, enemy, "start");
+          this._primeVoidEmperorPhaseAnchor(world, enemy);
           if (enemy.tags?.has?.("boss")) {
             this._log?.(`${enemy.name} becomes untouchable and begins to shift!`);
           }
+        } else if (phaseStage === "transition") {
+          this._spawnVoidEmperorPhaseTrail(world, enemy, dt);
         } else if (phaseStage === "complete") {
           if (enemy._phase2?.jumpToStart) this._jumpBossToStart(world, enemy);
           enemy.completePhase2Transition?.();
@@ -63,6 +70,7 @@ export class EnemySystem {
           }
         }
       } else {
+        this._spawnVoidEmperorPhase2Aura(world, enemy, dt);
         this._handleAbilities(enemy, dt, world, abilitySpawns);
       }
 
@@ -105,6 +113,7 @@ export class EnemySystem {
       ability.timer -= dt;
       if (ability.timer > 0) continue;
       ability.timer = Math.max(1, ability.cooldown ?? 8);
+      if (!this._shouldTriggerAbility(enemy, ability)) continue;
       const baseWindup = ability.windup ?? 0;
       const windup = baseWindup > 0 && enemy.tags?.has?.("boss") ? baseWindup * 2.6 : baseWindup;
       if (windup > 0) {
@@ -139,6 +148,18 @@ export class EnemySystem {
         this._executeAbility(enemy, ability, world, abilitySpawns, null);
       }
     }
+  }
+
+  _shouldTriggerAbility(enemy, ability) {
+    const isBoss = enemy.tags?.has?.("boss");
+    const hasExplicitChance =
+      ability?.chance != null || ability?.triggerChance != null || ability?.castChance != null;
+    if (!isBoss && !hasExplicitChance) return true;
+    const raw = ability?.chance ?? ability?.triggerChance ?? ability?.castChance ?? DEFAULT_BOSS_ABILITY_CHANCE;
+    const chance = clamp(raw, 0, 1);
+    if (chance >= 1) return true;
+    if (chance <= 0) return false;
+    return Math.random() < chance;
   }
 
   _executeAbility(enemy, ability, world, abilitySpawns, pending = null) {
@@ -487,6 +508,106 @@ export class EnemySystem {
       life: life + 0.15,
       maxLife: life + 0.15,
     });
+  }
+
+  _primeVoidEmperorPhaseAnchor(world, enemy) {
+    if (!enemy?._phase2Transition || enemy.defId !== "void_emperor") return;
+    if (!enemy._phase2?.jumpToStart) return;
+    const info = enemy.pathInfo ?? world?.pathInfos?.[enemy.pathIndex];
+    if (!info) return;
+    const anchor = pointAtProgress(info, 0);
+    const radius = Math.max(120, (enemy.radius ?? 12) * 7);
+    enemy._phase2Transition.anchor = anchor;
+    enemy._phase2Transition.anchorRadius = radius;
+    const duration = enemy._phase2Transition.total ?? 1.2;
+    this._spawnTelegraph(world, anchor.x, anchor.y, radius * 0.85, "rgba(59,130,246,0.9)", duration);
+    world.vfx?.push({
+      type: "pulse",
+      x: anchor.x,
+      y: anchor.y,
+      radius: radius * 0.6,
+      color: "rgba(129,140,248,0.85)",
+      life: Math.min(1.4, duration * 0.35),
+      maxLife: Math.min(1.4, duration * 0.35),
+    });
+  }
+
+  _spawnVoidEmperorPhase2Aura(world, enemy, dt) {
+    if (enemy.defId !== "void_emperor") return;
+    if ((enemy.phase ?? 1) < 2) return;
+    enemy._phase2AuraTimer = (enemy._phase2AuraTimer ?? 0) - dt;
+    if (enemy._phase2AuraTimer > 0) return;
+    enemy._phase2AuraTimer = 0.45;
+
+    const radius = Math.max(130, (enemy.radius ?? 12) * 7);
+    world.vfx?.push({
+      type: "void_aura",
+      x: enemy.x,
+      y: enemy.y,
+      radius,
+      color: "rgba(129,140,248,0.9)",
+      accent: "rgba(244,114,182,0.9)",
+      life: 0.9,
+      maxLife: 0.9,
+    });
+
+    const sparkCount = 3;
+    for (let i = 0; i < sparkCount; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const dist = enemy.radius + 12 + Math.random() * 12;
+      const speed = 18 + Math.random() * 14;
+      world.vfx?.push({
+        type: "rift_spark",
+        x: enemy.x + Math.cos(ang) * dist,
+        y: enemy.y + Math.sin(ang) * dist,
+        radius: 6 + Math.random() * 4,
+        color: "rgba(56,189,248,0.95)",
+        accent: "rgba(244,114,182,0.9)",
+        life: 0.7,
+        maxLife: 0.7,
+        vx: Math.cos(ang) * speed,
+        vy: Math.sin(ang) * speed,
+        rotation: Math.random() * Math.PI,
+        rotSpeed: (Math.random() - 0.5) * 3,
+        spin: 2 + Math.random() * 1.5,
+      });
+    }
+  }
+
+  _spawnVoidEmperorPhaseTrail(world, enemy, dt) {
+    if (enemy.defId !== "void_emperor") return;
+    const transition = enemy._phase2Transition;
+    if (!transition) return;
+    const info = enemy.pathInfo ?? world?.pathInfos?.[enemy.pathIndex];
+    if (!info) return;
+    transition.riftTimer = (transition.riftTimer ?? 0) - dt;
+    if (transition.riftTimer > 0) return;
+    transition.riftTimer = 0.2;
+
+    const maxProgress = clamp(enemy.progress01 ?? 0, 0, 1);
+    const spawnCount = 3;
+    for (let i = 0; i < spawnCount; i++) {
+      const progress = Math.random() * Math.max(0.05, maxProgress);
+      const point = pointAtProgress(info, progress);
+      const jitter = 14;
+      const ang = Math.random() * Math.PI * 2;
+      const speed = 10 + Math.random() * 14;
+      world.vfx?.push({
+        type: "rift_spark",
+        x: point.x + (Math.random() - 0.5) * jitter,
+        y: point.y + (Math.random() - 0.5) * jitter,
+        radius: 6 + Math.random() * 4,
+        color: "rgba(129,140,248,0.9)",
+        accent: "rgba(244,114,182,0.9)",
+        life: 0.9,
+        maxLife: 0.9,
+        vx: Math.cos(ang) * speed,
+        vy: Math.sin(ang) * speed,
+        rotation: Math.random() * Math.PI,
+        rotSpeed: (Math.random() - 0.5) * 3,
+        spin: 1.6 + Math.random() * 1.4,
+      });
+    }
   }
 
   _jumpBossToStart(world, enemy) {

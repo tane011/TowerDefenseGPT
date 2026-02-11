@@ -83,6 +83,7 @@ export class TowerSystem {
         tower.cooldown = Math.max(0, tower.cooldown - dt);
         tower.abilityCooldown = Math.max(0, tower.abilityCooldown - dt);
         if (tower._beamWarmup) tower._beamWarmup = 0;
+        if (tower._beamTargetId) tower._beamTargetId = null;
         continue;
       }
 
@@ -108,7 +109,15 @@ export class TowerSystem {
 
       if (stats.aura) continue; // Support towers skip standard firing.
       if (stats.beam) {
-        const target = chooseTarget(stats, inRange, this._rng, tower.x, tower.y);
+        let target = null;
+        if (tower._beamTargetId) {
+          target = world.enemies.find((enemy) => enemy.alive && enemy.id === tower._beamTargetId) || null;
+          if (!target) tower._beamTargetId = null;
+        }
+        if (!target) {
+          target = chooseTarget(stats, inRange, this._rng, tower.x, tower.y);
+          if (target) tower._beamTargetId = target.id;
+        }
         const warmupDuration = Math.max(0.2, stats.beam.warmupDuration ?? 1.6);
         const warmupMin = clamp(stats.beam.warmupMin ?? 0.35, 0.1, 1);
         const decayDuration = Math.max(0.2, stats.beam.decayDuration ?? warmupDuration * 0.8);
@@ -118,11 +127,13 @@ export class TowerSystem {
           const warmup = tower._beamWarmup ?? 0;
           const warmupMul = warmupMin + (1 - warmupMin) * warmup;
           const damage = Math.max(0, stats.damage) * warmupMul * dt;
-          target.takeDamage(damage, stats.damageType);
+          const result = target.takeDamage(damage, stats.damageType);
+          if (result?.dealt) tower.recordDamage(result.dealt);
+          if (result?.killed) tower._beamTargetId = null;
           tower._beamFxTimer = (tower._beamFxTimer ?? 0) - dt;
           const effectInterval = stats.beam.effectInterval ?? 0.6;
           if (tower._beamFxTimer <= 0) {
-            for (const fx of stats.onHitEffects || []) target.applyEffect(fx);
+            for (const fx of stats.onHitEffects || []) target.applyEffect(fx, tower.id);
             tower._beamFxTimer = effectInterval;
           }
           world.vfx.push({
@@ -232,8 +243,8 @@ export class TowerSystem {
       const damage = ability.damage ?? stats.damage;
       const damageType = ability.damageType ?? stats.damageType;
       for (const e of impacted) {
-        this._applyAbilityDamage(ability, e, damage, damageType);
-        for (const fx of ability.effects || []) e.applyEffect(fx);
+        this._applyAbilityDamage(tower, ability, e, damage, damageType);
+        for (const fx of ability.effects || []) e.applyEffect(fx, tower.id);
       }
       world.vfx.push({
         type: "explosion",
@@ -278,8 +289,11 @@ export class TowerSystem {
             chain: ability.chain ? { ...ability.chain } : null,
             bonusTags: ability.bonusTags ? [...ability.bonusTags] : null,
             bonusMult: ability.bonusMult ?? 1,
+            executeThreshold: ability.executeThreshold ?? null,
+            executeMult: ability.executeMult ?? null,
           })
         );
+        this._spawnAbilityVfx(world, ability, tower, t);
       }
       return true;
     }
@@ -287,7 +301,50 @@ export class TowerSystem {
     return false;
   }
 
-  _applyAbilityDamage(ability, enemy, baseDamage, damageType) {
+  _spawnAbilityVfx(world, ability, tower, target) {
+    const vfx = ability?.vfx;
+    if (!vfx || !world?.vfx?.push || !target) return;
+    const type = String(vfx.type || "").toLowerCase();
+    const color = vfx.color ?? vfxColorForDamage(ability?.damageType ?? "physical");
+    const life = Math.max(0.08, vfx.life ?? 0.22);
+    if (type === "beam") {
+      world.vfx.push({
+        type: "beam",
+        x1: tower.x,
+        y1: tower.y,
+        x2: target.x,
+        y2: target.y,
+        color,
+        width: vfx.width ?? 3,
+        life,
+        maxLife: life,
+      });
+    } else if (type === "zap") {
+      world.vfx.push({
+        type: "zap",
+        x1: tower.x,
+        y1: tower.y,
+        x2: target.x,
+        y2: target.y,
+        color,
+        life,
+        maxLife: life,
+      });
+    } else if (type === "pulse" || type === "explosion") {
+      const origin = vfx.origin === "tower" ? tower : target;
+      world.vfx.push({
+        type,
+        x: origin.x,
+        y: origin.y,
+        radius: vfx.radius ?? 38,
+        color,
+        life,
+        maxLife: life,
+      });
+    }
+  }
+
+  _applyAbilityDamage(tower, ability, enemy, baseDamage, damageType) {
     let dmg = baseDamage;
     if (ability.bonusTags && ability.bonusTags.length && enemy.tags) {
       for (const tag of ability.bonusTags) {
@@ -297,7 +354,8 @@ export class TowerSystem {
         }
       }
     }
-    enemy.takeDamage(dmg, damageType);
+    const result = enemy.takeDamage(dmg, damageType);
+    if (result?.dealt) tower?.recordDamage?.(result.dealt);
   }
 }
 

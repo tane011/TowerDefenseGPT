@@ -17,8 +17,15 @@ export class GameState {
 
     this.inWave = false; // derived (wave system active)
 
+    this.timeScale = 1;
+    this.debugInvincible = false;
+
     this.settings = {
       autoStartWaves: false,
+      keepBuildMode: true,
+      autoSelectBuilt: true,
+      pauseOnWaveEnd: false,
+      pauseOnBossWave: false,
       showAllRanges: false,
       showAuraRings: true,
       vfxScale: 1,
@@ -35,6 +42,11 @@ export class GameState {
       showStatusAuras: true,
       showBossRings: true,
       showBossBar: true,
+    };
+
+    this.runStats = {
+      damageDealt: 0,
+      kills: 0,
     };
   }
 }
