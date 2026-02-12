@@ -2851,6 +2851,9 @@ export class UI {
     if (!status || !status.enabled) {
       this._els.cloudStatus.textContent = status?.message || "Cloud saves unavailable.";
       if (this._els.cloudLastSync) this._els.cloudLastSync.textContent = "";
+      if (this._els.cloudAuthScreen && !this._els.cloudAuthScreen.classList.contains("hidden")) {
+        this._setCloudAuthError(status?.message || "Cloud saves unavailable.");
+      }
       if (this._els.cloudSigninEmail) this._els.cloudSigninEmail.disabled = true;
       if (this._els.cloudSignout) this._els.cloudSignout.disabled = true;
       if (this._els.cloudSave) this._els.cloudSave.disabled = true;
@@ -2875,6 +2878,9 @@ export class UI {
     }
     if (status.message) {
       this._els.cloudLastSync.textContent = status.message;
+    }
+    if (!status.signedIn && status.message && this._els.cloudAuthScreen && !this._els.cloudAuthScreen.classList.contains("hidden")) {
+      this._setCloudAuthError(status.message);
     }
     if (this._els.cloudSigninEmail) this._els.cloudSigninEmail.disabled = status.signedIn || status.busy;
     if (this._els.cloudSignout) this._els.cloudSignout.disabled = !status.signedIn || status.busy;

@@ -28,6 +28,7 @@ export class CloudSave {
     this._user = null;
     this._lastSyncAt = null;
     this._lastError = "";
+    this._lastErrorCode = "";
     this._autosaveEnabled = false;
     this._pendingSave = null;
     this._saveTimer = null;
@@ -77,6 +78,7 @@ export class CloudSave {
       lastSyncAt: this._lastSyncAt,
       busy: this._busy,
       message: this._lastError,
+      errorCode: this._lastErrorCode,
     };
   }
 
@@ -86,6 +88,7 @@ export class CloudSave {
     try {
       await signInWithEmailAndPassword(this._auth, email, password);
       this._lastError = "";
+      this._lastErrorCode = "";
     } catch (err) {
       this._lastError = this._formatError(err);
     } finally {
@@ -100,6 +103,7 @@ export class CloudSave {
     try {
       await createUserWithEmailAndPassword(this._auth, email, password);
       this._lastError = "";
+      this._lastErrorCode = "";
     } catch (err) {
       this._lastError = this._formatError(err);
     } finally {
@@ -114,6 +118,7 @@ export class CloudSave {
     try {
       await signOut(this._auth);
       this._lastError = "";
+      this._lastErrorCode = "";
     } catch (err) {
       this._lastError = this._formatError(err);
     } finally {
@@ -157,6 +162,7 @@ export class CloudSave {
       await setDoc(ref, payload, { merge: true });
       this._lastSyncAt = Date.now();
       this._lastError = "";
+      this._lastErrorCode = "";
       return true;
     } catch (err) {
       this._lastError = this._formatError(err);
@@ -195,6 +201,7 @@ export class CloudSave {
       if (applied) {
         this._lastSyncAt = Date.now();
         this._lastError = "";
+        this._lastErrorCode = "";
       }
       return Boolean(applied);
     } catch (err) {
@@ -218,8 +225,33 @@ export class CloudSave {
   }
 
   _formatError(err) {
-    if (!err) return "Cloud save error.";
-    if (typeof err === "string") return err;
-    return err.message || "Cloud save error.";
+    if (!err) {
+      this._lastErrorCode = "";
+      return "Cloud save error.";
+    }
+    if (typeof err === "string") {
+      this._lastErrorCode = "";
+      return err;
+    }
+    this._lastErrorCode = err.code || "";
+    const code = String(err.code || "");
+    switch (code) {
+      case "auth/operation-not-allowed":
+        return "Email/Password auth is disabled in Firebase. Enable it in Authentication → Sign-in method.";
+      case "auth/invalid-email":
+        return "Invalid username. Use 3–20 letters, numbers, dot, dash, or underscore.";
+      case "auth/user-not-found":
+        return "Account not found. Create an account first.";
+      case "auth/wrong-password":
+        return "Incorrect password.";
+      case "auth/weak-password":
+        return "Password is too weak. Use at least 6 characters.";
+      case "auth/email-already-in-use":
+        return "Username already exists. Sign in instead.";
+      case "auth/network-request-failed":
+        return "Network error. Check your connection and try again.";
+      default:
+        return err.message || "Cloud save error.";
+    }
   }
 }
