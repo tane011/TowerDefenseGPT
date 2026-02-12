@@ -2814,10 +2814,14 @@ export class UI {
     if (this._els.cloudAuthScreen) this._els.cloudAuthScreen.classList.remove("hidden");
     this._setCloudAuthError("");
     if (this._els.cloudAuthEmail) this._els.cloudAuthEmail.focus();
+    this._authGateSuppressed = true;
+    if (this._els.authGate) this._els.authGate.classList.add("hidden");
   }
 
   _hideCloudAuth() {
     if (this._els.cloudAuthScreen) this._els.cloudAuthScreen.classList.add("hidden");
+    this._authGateSuppressed = false;
+    if (this._cloudStatusLast) this._applyAuthGate(this._cloudStatusLast);
   }
 
   _setCloudAuthError(message = "") {
@@ -2842,6 +2846,7 @@ export class UI {
   }
 
   _syncCloudStatus(status) {
+    this._cloudStatusLast = status || null;
     if (!this._els.cloudStatus) return;
     if (!status || !status.enabled) {
       this._els.cloudStatus.textContent = status?.message || "Cloud saves unavailable.";
@@ -2880,6 +2885,10 @@ export class UI {
 
   _applyAuthGate(status) {
     if (!this._els.authGate) return;
+    if (this._authGateSuppressed) {
+      this._els.authGate.classList.add("hidden");
+      return;
+    }
     if (!status || !status.enabled) {
       this._els.authGate.classList.remove("hidden");
       if (this._els.authGateStatus) {

@@ -3710,6 +3710,10 @@ button[disabled] {
   width: min(520px, calc(100% - 24px));
 }
 
+#cloud-auth-screen {
+  z-index: 12;
+}
+
 .cloud-auth-header {
   display: flex;
   align-items: flex-start;
