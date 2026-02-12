@@ -5,13 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TowerDefenseGPT</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="./style.css?v=20260211ae" />
+    <link rel="stylesheet" href="./style.css?v=__BUILD_HASH__" />
   </head>
   <body>
     <div id="layout">
       <div id="game-area">
         <canvas id="boss-canvas" class="boss-canvas is-hidden" width="960" height="128"></canvas>
         <canvas id="game-canvas" width="960" height="540"></canvas>
+
+        <div id="loading-screen" class="overlay loading-screen">
+          <div class="panel loading-panel">
+            <div class="loading-spinner" aria-hidden="true"></div>
+            <div class="loading-title">Loading TowerDefenseGPT</div>
+            <div class="muted small loading-subtitle">Calibrating systems...</div>
+          </div>
+        </div>
 
         <div id="title-screen" class="overlay">
           <div class="panel title-panel">
@@ -1422,6 +1430,6 @@
       </aside>
     </div>
 
-    <script type="module" src="./src/main.js?v=20260211k"></script>
+    <script type="module" src="./src/main.js?v=__BUILD_HASH__"></script>
   </body>
 </html>

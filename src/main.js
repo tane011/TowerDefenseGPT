@@ -11,6 +11,7 @@ import { UI } from "./ui/UI.js";
 
 const canvas = document.getElementById("game-canvas");
 const bossCanvas = document.getElementById("boss-canvas");
+const loadingScreen = document.getElementById("loading-screen");
 const params = new URLSearchParams(window.location.search);
 const uiCapture = params.get("uiCapture") === "1";
 const input = new Input(canvas);
@@ -78,6 +79,22 @@ const game = new Game({ canvas, bossCanvas, input, data: DATA, rng, state, ui: n
 const ui = new UI({ data: DATA, game, progression, shop });
 game.ui = ui;
 ui.init();
+
+if (loadingScreen) {
+  let dismissed = false;
+  const dismiss = () => {
+    if (dismissed) return;
+    dismissed = true;
+    loadingScreen.classList.add("is-hidden");
+    window.setTimeout(() => loadingScreen.classList.add("hidden"), 300);
+  };
+  if (document.readyState === "complete") {
+    requestAnimationFrame(dismiss);
+  } else {
+    window.addEventListener("load", () => requestAnimationFrame(dismiss), { once: true });
+  }
+  window.setTimeout(dismiss, 2500);
+}
 
 if (promptProfiles && ui?._showProfileSelectScreen) {
   ui._showProfileSelectScreen();
