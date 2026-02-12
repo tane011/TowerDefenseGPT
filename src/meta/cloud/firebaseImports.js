@@ -2,8 +2,6 @@ export { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12
 export {
   getAuth,
   onAuthStateChanged,
-  GoogleAuthProvider,
-  signInWithPopup,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,

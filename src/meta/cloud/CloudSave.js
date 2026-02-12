@@ -4,8 +4,6 @@ import {
   getApps,
   getAuth,
   onAuthStateChanged,
-  GoogleAuthProvider,
-  signInWithPopup,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
@@ -45,7 +43,6 @@ export class CloudSave {
     const app = getApps().length ? getApps()[0] : initializeApp(FIREBASE_CONFIG);
     this._auth = getAuth(app);
     this._db = getFirestore(app);
-    this._provider = new GoogleAuthProvider();
     this._enabled = true;
 
     onAuthStateChanged(this._auth, (user) => {
@@ -81,20 +78,6 @@ export class CloudSave {
       busy: this._busy,
       message: this._lastError,
     };
-  }
-
-  async signInWithGoogle() {
-    if (!this._enabled || !this._auth) return;
-    this._setBusy(true);
-    try {
-      await signInWithPopup(this._auth, this._provider);
-      this._lastError = "";
-    } catch (err) {
-      this._lastError = this._formatError(err);
-    } finally {
-      this._setBusy(false);
-      this._emitStatus();
-    }
   }
 
   async signInWithEmail(email, password) {

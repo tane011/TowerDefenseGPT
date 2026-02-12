@@ -510,7 +510,6 @@ export class UI {
       settingResetCoachmarks: document.getElementById("setting-reset-coachmarks"),
       cloudStatus: document.getElementById("cloud-status"),
       cloudLastSync: document.getElementById("cloud-last-sync"),
-      cloudSigninGoogle: document.getElementById("cloud-signin-google"),
       cloudSigninEmail: document.getElementById("cloud-signin-email"),
       cloudSignout: document.getElementById("cloud-signout"),
       cloudSave: document.getElementById("cloud-save"),
@@ -524,7 +523,6 @@ export class UI {
       cloudAuthError: document.getElementById("cloud-auth-error"),
       authGate: document.getElementById("auth-gate"),
       authGateStatus: document.getElementById("auth-gate-status"),
-      authGateGoogle: document.getElementById("auth-gate-google"),
       authGateEmail: document.getElementById("auth-gate-email"),
 
       money: document.getElementById("stat-money"),
@@ -2775,13 +2773,11 @@ export class UI {
     const status = this._cloud.getStatus?.() || null;
     if (status) this._syncCloudStatus(status);
 
-    this._els.cloudSigninGoogle?.addEventListener("click", () => this._cloud.signInWithGoogle?.());
     this._els.cloudSigninEmail?.addEventListener("click", () => this._showCloudAuth());
     this._els.cloudSignout?.addEventListener("click", () => this._cloud.signOut?.());
     this._els.cloudSave?.addEventListener("click", () => this._cloud.uploadNow?.());
     this._els.cloudLoad?.addEventListener("click", () => this._cloud.downloadNow?.());
 
-    this._els.authGateGoogle?.addEventListener("click", () => this._cloud.signInWithGoogle?.());
     this._els.authGateEmail?.addEventListener("click", () => this._showCloudAuth());
 
     this._els.cloudAuthClose?.addEventListener("click", () => this._hideCloudAuth());
@@ -2789,10 +2785,15 @@ export class UI {
       if (event.target === this._els.cloudAuthScreen) this._hideCloudAuth();
     });
     const submitEmail = (mode) => {
-      const email = String(this._els.cloudAuthEmail?.value || "").trim();
+      const username = String(this._els.cloudAuthEmail?.value || "").trim();
       const password = String(this._els.cloudAuthPassword?.value || "");
-      if (!email || !password) {
-        this._setCloudAuthError("Email and password are required.");
+      if (!username || !password) {
+        this._setCloudAuthError("Username and password are required.");
+        return;
+      }
+      const email = this._usernameToEmail(username);
+      if (!email) {
+        this._setCloudAuthError("Usernames must be 3-20 characters: letters, numbers, dot, dash, underscore.");
         return;
       }
       this._setCloudAuthError("");
@@ -2824,12 +2825,27 @@ export class UI {
     this._els.cloudAuthError.textContent = message || "";
   }
 
+  _usernameToEmail(username) {
+    const cleaned = String(username || "").trim().toLowerCase();
+    if (!cleaned) return null;
+    if (cleaned.includes("@")) return cleaned;
+    if (!/^[a-z0-9._-]{3,20}$/.test(cleaned)) return null;
+    return `${cleaned}@towerdefensegpt.local`;
+  }
+
+  _formatCloudUser(status) {
+    const email = status?.userEmail || "";
+    if (email.endsWith("@towerdefensegpt.local")) {
+      return email.replace("@towerdefensegpt.local", "");
+    }
+    return status?.userName || email || "Signed in";
+  }
+
   _syncCloudStatus(status) {
     if (!this._els.cloudStatus) return;
     if (!status || !status.enabled) {
       this._els.cloudStatus.textContent = status?.message || "Cloud saves unavailable.";
       if (this._els.cloudLastSync) this._els.cloudLastSync.textContent = "";
-      if (this._els.cloudSigninGoogle) this._els.cloudSigninGoogle.disabled = true;
       if (this._els.cloudSigninEmail) this._els.cloudSigninEmail.disabled = true;
       if (this._els.cloudSignout) this._els.cloudSignout.disabled = true;
       if (this._els.cloudSave) this._els.cloudSave.disabled = true;
@@ -2838,7 +2854,7 @@ export class UI {
       return;
     }
     if (status.signedIn) {
-      const name = status.userName || status.userEmail || "Signed in";
+      const name = this._formatCloudUser(status);
       this._els.cloudStatus.textContent = `Signed in as ${name}.`;
       this._hideCloudAuth();
     } else {
@@ -2855,7 +2871,6 @@ export class UI {
     if (status.message) {
       this._els.cloudLastSync.textContent = status.message;
     }
-    if (this._els.cloudSigninGoogle) this._els.cloudSigninGoogle.disabled = status.signedIn || status.busy;
     if (this._els.cloudSigninEmail) this._els.cloudSigninEmail.disabled = status.signedIn || status.busy;
     if (this._els.cloudSignout) this._els.cloudSignout.disabled = !status.signedIn || status.busy;
     if (this._els.cloudSave) this._els.cloudSave.disabled = !status.signedIn || status.busy;
@@ -2870,7 +2885,6 @@ export class UI {
       if (this._els.authGateStatus) {
         this._els.authGateStatus.textContent = status?.message || "Cloud saves unavailable. Configure Firebase to continue.";
       }
-      if (this._els.authGateGoogle) this._els.authGateGoogle.disabled = true;
       if (this._els.authGateEmail) this._els.authGateEmail.disabled = true;
       return;
     }
@@ -2880,7 +2894,6 @@ export class UI {
     }
     this._els.authGate.classList.remove("hidden");
     if (this._els.authGateStatus) this._els.authGateStatus.textContent = "Sign in to access the game.";
-    if (this._els.authGateGoogle) this._els.authGateGoogle.disabled = status.busy;
     if (this._els.authGateEmail) this._els.authGateEmail.disabled = status.busy;
   }
 

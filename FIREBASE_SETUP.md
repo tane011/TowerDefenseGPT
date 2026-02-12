@@ -8,9 +8,8 @@ This project uses Firebase Auth + Firestore for cloud saves.
 3. Copy the Firebase config object.
 
 ## 2) Enable Authentication providers
-Enable these providers:
+Enable this provider:
 - **Email/Password**
-- **Google**
 
 Also add these authorized domains:
 - `tane011.github.io`
