@@ -3,7 +3,15 @@ import { MapInstance } from "../world/Map.js";
 import { buildTowerSprites } from "../render/sprites.js";
 import { buildSprites } from "../render/sprites.js";
 import { calculateCoinReward, computeModifierCoinMultiplier } from "../meta/rewards.js";
-import { FEATURE_IDS, mapUnlockKey, modeUnlockKey } from "../meta/unlocks.js";
+import {
+  FEATURE_IDS,
+  mapUnlockKey,
+  modeUnlockKey,
+  towerUnlockKey,
+  modifierUnlockKey,
+  featureUnlockKey,
+  defaultUnlocks,
+} from "../meta/unlocks.js";
 
 function findClosestSegment(path, tx, ty) {
   if (!path || path.length < 2) return null;
@@ -68,12 +76,17 @@ const TARGETING_OPTIONS = [
   { value: "random", label: "Random" },
 ];
 
-const SAVE_STORAGE_KEY = "td_saves_v1";
-const DEBUG_SAVE_ID = "debug-infinite-coins";
-const DEBUG_SAVE_COINS = 999999999;
-const SAVE_TYPE_RUN = "run";
-const SAVE_TYPE_PROFILE = "profile";
-const SAVE_TYPE_DEBUG = "debug";
+const PROFILE_SLOT_KEY = "td_profile_slot_v1";
+const PROFILE_STORAGE_PREFIX = "td_profile_v1_";
+const PROFILE_LAST_REAL_KEY = "td_profile_slot_last_real_v1";
+const PROFILE_SLOTS = Object.freeze([
+  { id: "slot-1", name: "Slot 1" },
+  { id: "slot-2", name: "Slot 2" },
+  { id: "slot-3", name: "Slot 3" },
+  { id: "slot-4", name: "Debug" },
+]);
+const THEME_CHOICES = Object.freeze(["default", "ember", "aurora", "cinder", "verdant", "nebula"]);
+const DEBUG_PROFILE_ID = "slot-4";
 
 const TUTORIAL_STEPS = [
   {
@@ -252,18 +265,17 @@ export class UI {
       themesOpen: document.getElementById("themes-open"),
       settingsScreen: document.getElementById("settings-screen"),
       settingsClose: document.getElementById("settings-close"),
+      themesScreen: document.getElementById("themes-screen"),
+      themesClose: document.getElementById("themes-close"),
+      themeCards: document.querySelectorAll(".theme-card"),
       savesOpen: document.getElementById("saves-open"),
       savesScreen: document.getElementById("saves-screen"),
       savesClose: document.getElementById("saves-close"),
       savesList: document.getElementById("saves-list"),
       savesStatus: document.getElementById("saves-status"),
-      saveNameInput: document.getElementById("save-name-input"),
-      saveRunBtn: document.getElementById("save-run-btn"),
-      saveProfileBtn: document.getElementById("save-profile-btn"),
       savesOpenAlt: document.getElementById("saves-open-alt"),
-      exportSavesBtn: document.getElementById("export-saves-btn"),
-      importSavesBtn: document.getElementById("import-saves-btn"),
-      importSavesInput: document.getElementById("import-saves-input"),
+      profileSelectScreen: document.getElementById("profile-select-screen"),
+      profileSelectList: document.getElementById("profile-select-list"),
       statsOpen: document.getElementById("stats-open"),
       statsScreen: document.getElementById("stats-screen"),
       statsClose: document.getElementById("stats-close"),
@@ -453,11 +465,21 @@ export class UI {
       statsBestDamage: document.getElementById("stats-best-damage"),
       statsBestKills: document.getElementById("stats-best-kills"),
       statsBestTime: document.getElementById("stats-best-time"),
+      statsDamagePerMin: document.getElementById("stats-damage-per-min"),
+      statsKillsPerMin: document.getElementById("stats-kills-per-min"),
+      statsCoinsPerMin: document.getElementById("stats-coins-per-min"),
+      statsDamagePerWave: document.getElementById("stats-damage-per-wave"),
+      statsKillsPerWave: document.getElementById("stats-kills-per-wave"),
+      statsCoinsPerWave: document.getElementById("stats-coins-per-wave"),
       statsRecentWinRate: document.getElementById("stats-recent-win-rate"),
       statsRecentAvgWaves: document.getElementById("stats-recent-avg-waves"),
       statsRecentAvgCoins: document.getElementById("stats-recent-avg-coins"),
       statsLastRun: document.getElementById("stats-last-run"),
-      statsChart: document.getElementById("stats-chart"),
+      statsPie: document.getElementById("stats-pie"),
+      statsLine: document.getElementById("stats-line"),
+      statsChartWaves: document.getElementById("stats-chart-waves"),
+      statsChartDamage: document.getElementById("stats-chart-damage"),
+      statsChartTime: document.getElementById("stats-chart-time"),
       statsBody: document.getElementById("stats-body"),
       statsLocked: document.getElementById("stats-locked"),
       settingAutoWaves: document.getElementById("setting-auto-waves"),
@@ -624,8 +646,10 @@ export class UI {
     this._customModes = [];
     this._customModeEditingId = null;
     this._enemyList = [];
-    this._saves = [];
+    this._profiles = [];
+    this._activeProfileId = this._getActiveProfileId();
     this._savesOverlay = { pausedBefore: null };
+    this._profileSelectOpen = false;
 
     this._settings = this._loadSettings();
     this._lastFreeMapId = (this._data.mapDefs || [])[0]?.id ?? null;
@@ -638,8 +662,11 @@ export class UI {
     this._syncCoins();
     this._bindShop();
     this._bindCodex();
-    this._saves = this._loadSaves();
-    this._bindSaves();
+    this._ensureActiveProfile();
+    this._profiles = this._loadProfiles();
+    this._bindProfiles();
+    this._bindProfileSelect();
+    this._showProfileSelectScreen();
     // Custom maps + map selector.
     this._customMaps = this._loadCustomMaps();
     this._refreshMapDefs();
@@ -691,6 +718,7 @@ export class UI {
 
     // Settings.
     this._bindSettings();
+    this._bindThemes();
     this._syncSettingsUi();
     this._applySettings();
     this._setStartMenuOpen(this._isMenuVisible());
@@ -719,6 +747,7 @@ export class UI {
     this._els.settingsOpen?.addEventListener("click", () => this._showSettingsScreen());
     this._els.settingsClose?.addEventListener("click", () => this._hideSettingsScreen());
     this._els.themesOpen?.addEventListener("click", () => this._showThemesFeature());
+    this._els.themesClose?.addEventListener("click", () => this._hideThemesScreen());
 
     this._els.statsOpen?.addEventListener("click", () => this._showStatsScreen());
     this._els.statsClose?.addEventListener("click", () => this._hideStatsScreen());
@@ -800,8 +829,9 @@ export class UI {
   }
 
   _formatCoinCount(value) {
-    const coins = Math.max(0, Math.round(Number(value) || 0));
-    if (coins >= DEBUG_SAVE_COINS) return "∞";
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return "∞";
+    const coins = Math.max(0, Math.round(numeric || 0));
     return String(coins);
   }
 
@@ -829,27 +859,248 @@ export class UI {
     }
   }
 
-  _bindSaves() {
+  _bindProfiles() {
     this._els.savesOpen?.addEventListener("click", () => this._showSavesScreen());
     this._els.savesOpenAlt?.addEventListener("click", () => this._showSavesScreen(true));
     this._els.savesClose?.addEventListener("click", () => this._hideSavesScreen());
-    this._els.saveRunBtn?.addEventListener("click", () => this._saveRunSnapshot());
-    this._els.saveProfileBtn?.addEventListener("click", () => this._saveProfileSnapshot());
-    this._els.exportSavesBtn?.addEventListener("click", () => this._exportSavesJson());
-    this._els.importSavesBtn?.addEventListener("click", () => this._els.importSavesInput?.click());
-    this._els.importSavesInput?.addEventListener("change", (event) => this._importSavesJson(event));
     this._els.savesList?.addEventListener("click", (event) => {
-      const btn = event.target?.closest?.("[data-save-load]");
+      const btn = event.target?.closest?.("[data-profile-switch]");
       if (!btn) return;
-      const saveId = btn.dataset.saveLoad || "";
-      this._applySave(saveId);
+      const slotId = btn.dataset.profileSwitch || "";
+      this._switchProfile(slotId);
     });
-    this._els.savesList?.addEventListener("click", (event) => {
-      const btn = event.target?.closest?.("[data-save-delete]");
+  }
+
+  _bindProfileSelect() {
+    this._els.profileSelectList?.addEventListener("click", (event) => {
+      const btn = event.target?.closest?.("[data-profile-select]");
       if (!btn) return;
-      const saveId = btn.dataset.saveDelete || "";
-      this._deleteSave(saveId);
+      const slotId = btn.dataset.profileSelect || "";
+      this._selectProfileFromStartup(slotId);
     });
+  }
+
+  _showProfileSelectScreen() {
+    if (!this._els.profileSelectScreen || !this._els.profileSelectList) return;
+    this._renderProfileSelectScreen();
+    this._els.profileSelectScreen.classList.remove("hidden");
+    this._profileSelectOpen = true;
+  }
+
+  _hideProfileSelectScreen() {
+    if (!this._els.profileSelectScreen) return;
+    this._els.profileSelectScreen.classList.add("hidden");
+    this._profileSelectOpen = false;
+  }
+
+  _selectProfileFromStartup(slotId) {
+    if (!slotId || this._isDebugProfile(slotId)) return;
+    if (slotId !== this._activeProfileId) {
+      this._switchProfile(slotId);
+    }
+    this._hideProfileSelectScreen();
+  }
+
+  _readProfileMeta(slotId) {
+    const defaults = defaultUnlocks();
+    const fallback = {
+      coins: 0,
+      unlockedCount: defaults.length,
+      unlockedIds: defaults,
+      runs: 0,
+      victories: 0,
+      bestWaves: 0,
+      bestCoins: 0,
+      totalWaves: 0,
+      totalCoins: 0,
+      lastPlayed: null,
+    };
+    try {
+      const raw = window.localStorage?.getItem(this._profileStorageKey(slotId));
+      if (!raw) return fallback;
+      const payload = JSON.parse(raw);
+      const coinsRaw = payload?.coins;
+      const coins = coinsRaw === "inf" ? Number.POSITIVE_INFINITY : Number.parseInt(coinsRaw, 10);
+      const unlocked = Array.isArray(payload?.unlocked)
+        ? payload.unlocked.filter((id) => typeof id === "string" && id)
+        : defaults;
+      const stats = payload?.stats || {};
+      const runs = Math.max(0, Math.round(stats.runs || 0));
+      const victories = Math.max(0, Math.round(stats.victories || 0));
+      const bestWaves = Math.max(0, Math.round(stats.bestWaves || 0));
+      const bestCoins = Math.max(0, Math.round(stats.bestCoins || 0));
+      const totalWaves = Math.max(0, Math.round(stats.totalWaves || 0));
+      const totalCoins = Math.max(0, Math.round(stats.totalCoins || 0));
+      const history = Array.isArray(stats.history) ? stats.history : [];
+      const lastTs = history[0]?.ts ? Number(history[0].ts) : null;
+      return {
+        coins: Number.isFinite(coins) ? Math.max(0, coins) : 0,
+        unlockedCount: Array.isArray(unlocked) ? unlocked.length : defaults.length,
+        unlockedIds: Array.isArray(unlocked) ? unlocked : defaults,
+        runs,
+        victories,
+        bestWaves,
+        bestCoins,
+        totalWaves,
+        totalCoins,
+        lastPlayed: Number.isFinite(lastTs) ? lastTs : null,
+      };
+    } catch {
+      return fallback;
+    }
+  }
+
+  _renderProfileSelectScreen() {
+    if (!this._els.profileSelectList) return;
+    const list = this._els.profileSelectList;
+    list.innerHTML = "";
+    const slots = PROFILE_SLOTS.filter((slot) => !this._isDebugProfile(slot.id));
+    const paidUnlocks = this._getPaidUnlockSet();
+    const paidTotal = paidUnlocks.size;
+    for (const slot of slots) {
+      const meta = this._readProfileMeta(slot.id);
+      const unlockedIds = meta.unlockedIds || [];
+      const paidUnlockedCount = unlockedIds.reduce(
+        (sum, id) => (paidUnlocks.has(id) ? sum + 1 : sum),
+        0,
+      );
+      const card = document.createElement("div");
+      card.className = "profile-select-card";
+      if (slot.id === this._activeProfileId) card.classList.add("active");
+
+      const top = document.createElement("div");
+      top.className = "profile-select-top";
+      const header = document.createElement("div");
+      header.className = "profile-select-card-header";
+      const titleWrap = document.createElement("div");
+      const title = document.createElement("div");
+      title.className = "profile-select-title";
+      title.textContent = slot.name;
+      titleWrap.appendChild(title);
+      header.appendChild(titleWrap);
+      const badge = document.createElement("span");
+      if (slot.id === this._activeProfileId) {
+        badge.className = "profile-select-badge active";
+        badge.textContent = "Active";
+        header.appendChild(badge);
+      } else if (meta.runs === 0) {
+        badge.className = "profile-select-badge new";
+        badge.textContent = "New";
+        header.appendChild(badge);
+      }
+      top.appendChild(header);
+
+      const topStats = document.createElement("div");
+      topStats.className = "profile-select-top-stats";
+      const lastPlayedText = meta.lastPlayed ? new Date(meta.lastPlayed).toLocaleDateString() : "Never";
+      const topLines = [
+        ["Coins", this._formatCoinCount(meta.coins)],
+        ["Last Played", lastPlayedText],
+      ];
+      for (const [label, value] of topLines) {
+        const item = document.createElement("div");
+        item.className = "profile-select-top-stat";
+        const labelEl = document.createElement("div");
+        labelEl.className = "profile-select-top-label";
+        labelEl.textContent = label;
+        const valueEl = document.createElement("div");
+        valueEl.className = "profile-select-top-value";
+        if (label === "Coins") {
+          const icon = document.createElement("span");
+          icon.className = "profile-coin-icon";
+          valueEl.appendChild(icon);
+        }
+        valueEl.appendChild(document.createTextNode(value));
+        item.appendChild(labelEl);
+        item.appendChild(valueEl);
+        topStats.appendChild(item);
+      }
+      top.appendChild(topStats);
+
+      const metaList = document.createElement("div");
+      metaList.className = "profile-select-meta";
+      const bestCoins = Number.isFinite(meta.bestCoins) ? this._formatCoinCount(meta.bestCoins) : "0";
+      const totalCoins = Number.isFinite(meta.totalCoins) ? this._formatCoinCount(meta.totalCoins) : "0";
+      const winRate = meta.runs > 0 ? `${Math.round((meta.victories / meta.runs) * 100)}%` : "—";
+      const winRateDecimal = meta.runs > 0 ? (meta.victories / meta.runs).toFixed(2) : "0.00";
+      const unlockPercent = paidTotal > 0 ? Math.round((paidUnlockedCount / paidTotal) * 100) : 0;
+      const lines = [
+        ["Unlocked", String(paidUnlockedCount)],
+        ["Runs", String(meta.runs)],
+        ["Victories", String(meta.victories)],
+        ["Win Rate", winRate],
+        ["Best Waves", String(meta.bestWaves)],
+        ["Best Coins", bestCoins],
+        ["Total Waves", String(meta.totalWaves)],
+        ["Total Coins", totalCoins],
+      ];
+      const visual = document.createElement("div");
+      visual.className = "profile-select-visual";
+      const ring = document.createElement("div");
+      ring.className = "profile-ring";
+      ring.style.setProperty("--ring", `${unlockPercent}%`);
+      const ringLabel = document.createElement("div");
+      ringLabel.className = "profile-ring-label";
+      const ringValue = document.createElement("div");
+      ringValue.className = "profile-ring-value";
+      ringValue.textContent = `${unlockPercent}%`;
+      const ringSub = document.createElement("div");
+      ringSub.className = "profile-ring-sub";
+      ringSub.textContent = "Progress";
+      ringLabel.appendChild(ringValue);
+      ringLabel.appendChild(ringSub);
+      ring.appendChild(ringLabel);
+      const visualMeta = document.createElement("div");
+      visualMeta.className = "profile-mini";
+      const miniLines = [
+        ["Unlocks", `${paidUnlockedCount} / ${paidTotal}`],
+        ["Win Rate", winRateDecimal],
+        ["Best Waves", String(meta.bestWaves)],
+      ];
+      for (const [label, value] of miniLines) {
+        const row = document.createElement("div");
+        row.className = "profile-mini-row";
+        const labelEl = document.createElement("span");
+        labelEl.className = "profile-mini-label";
+        labelEl.textContent = label;
+        const valueEl = document.createElement("span");
+        valueEl.className = "profile-mini-value";
+        valueEl.textContent = value;
+        row.appendChild(labelEl);
+        row.appendChild(valueEl);
+        visualMeta.appendChild(row);
+      }
+      visual.appendChild(ring);
+      visual.appendChild(visualMeta);
+      top.appendChild(visual);
+      for (const [label, value] of lines) {
+        const row = document.createElement("div");
+        row.className = "profile-select-row";
+        const labelEl = document.createElement("span");
+        labelEl.className = "profile-select-label";
+        labelEl.textContent = label;
+        const valueEl = document.createElement("span");
+        valueEl.className = "profile-select-value";
+        valueEl.textContent = value;
+        row.appendChild(labelEl);
+        row.appendChild(valueEl);
+        metaList.appendChild(row);
+      }
+      top.appendChild(metaList);
+      card.appendChild(top);
+
+      const cta = document.createElement("div");
+      cta.className = "profile-select-cta";
+      const btn = document.createElement("button");
+      btn.className = slot.id === this._activeProfileId ? "profile-select-cta--continue" : "primary";
+      btn.type = "button";
+      btn.dataset.profileSelect = slot.id;
+      btn.textContent = slot.id === this._activeProfileId ? "Continue" : "Select";
+      cta.appendChild(btn);
+      card.appendChild(cta);
+
+      list.appendChild(card);
+    }
   }
 
   _showShopScreen() {
@@ -1495,15 +1746,19 @@ export class UI {
       this._els.themesOpen.disabled = themeLocked;
       this._els.themesOpen.classList.toggle("locked", themeLocked);
     }
+    if (this._els.themeCards && this._els.themeCards.length) {
+      for (const card of this._els.themeCards) {
+        card.disabled = themeLocked;
+        card.classList.toggle("locked", themeLocked);
+      }
+    }
     if (this._els.settingTheme) {
       this._els.settingTheme.disabled = themeLocked;
       const wrap = this._els.settingTheme.closest?.(".setting-item");
       if (wrap) wrap.classList.toggle("locked", themeLocked);
-      if (themeLocked && this._settings.theme !== "default") {
-        this._settings.theme = "default";
-        this._applySettings();
-      }
     }
+    this._applySettings();
+    this._syncThemeCards();
 
     const cinemaLocked = !this._isFeatureUnlocked(FEATURE_IDS.CINEMATIC_UI);
     if (this._els.settingCinematicUi) {
@@ -1658,13 +1913,19 @@ export class UI {
       this._notifyFeatureLocked("Theme Pack");
       return;
     }
-    this._showSettingsScreen();
-    const themeSelect = this._els.settingTheme;
-    if (!themeSelect) return;
-    requestAnimationFrame(() => {
-      themeSelect.scrollIntoView({ block: "center" });
-      themeSelect.focus({ preventScroll: true });
-    });
+    this._showThemesScreen();
+  }
+
+  _showThemesScreen() {
+    if (!this._els.themesScreen) return;
+    if (!this._isMenuVisible()) return;
+    this._syncThemeCards();
+    this._els.themesScreen.classList.remove("hidden");
+  }
+
+  _hideThemesScreen() {
+    if (!this._els.themesScreen) return;
+    this._els.themesScreen.classList.add("hidden");
   }
 
   _hideSettingsScreen() {
@@ -1679,10 +1940,7 @@ export class UI {
       this._savesOverlay.pausedBefore = this._game.state.paused;
       this._game.state.paused = true;
     }
-    if (this._els.saveNameInput && !this._els.saveNameInput.value) {
-      this._els.saveNameInput.placeholder = this._suggestSaveName();
-    }
-    this._renderSavesScreen();
+    this._renderProfiles();
     this._els.savesScreen.classList.remove("hidden");
   }
 
@@ -1702,8 +1960,9 @@ export class UI {
       this._notifyFeatureLocked("Stats Charts");
       return;
     }
-    this._renderStatsScreen();
     this._els.statsScreen.classList.remove("hidden");
+    this._renderStatsScreen();
+    requestAnimationFrame(() => this._renderStatsScreen());
   }
 
   _hideStatsScreen() {
@@ -1758,6 +2017,7 @@ export class UI {
     if (!open) this._hideShopScreen();
     if (!open) this._hideSettingsScreen();
     if (!open) this._hideSavesScreen();
+    if (!open) this._hideProfileSelectScreen();
     if (!open) this._hideStatsScreen();
     if (!open) this._hideCodexScreen();
     this._applySettings();
@@ -1816,6 +2076,12 @@ export class UI {
     const avgDamage = hasRuns ? totalDamage / runs : null;
     const avgKills = hasRuns ? totalKills / runs : null;
     const avgTime = hasRuns ? totalTime / runs : null;
+    const damagePerMin = totalTime > 0 ? (totalDamage * 60) / totalTime : null;
+    const killsPerMin = totalTime > 0 ? (totalKills * 60) / totalTime : null;
+    const coinsPerMin = totalTime > 0 ? (totalCoins * 60) / totalTime : null;
+    const damagePerWave = totalWaves > 0 ? totalDamage / totalWaves : null;
+    const killsPerWave = totalWaves > 0 ? totalKills / totalWaves : null;
+    const coinsPerWave = totalWaves > 0 ? totalCoins / totalWaves : null;
 
     setText(this._els.statsWinRate, winRate == null ? "-" : `${fmt(winRate * 100, 1)}%`);
     setText(this._els.statsAvgWaves, avgWaves == null ? "-" : fmt(avgWaves, 1));
@@ -1833,6 +2099,12 @@ export class UI {
     setText(this._els.statsBestDamage, hasRuns ? formatBig(bestDamage) : "-");
     setText(this._els.statsBestKills, hasRuns ? formatBig(bestKills) : "-");
     setText(this._els.statsBestTime, hasRuns ? formatDuration(bestTime) : "-");
+    setText(this._els.statsDamagePerMin, damagePerMin == null ? "-" : fmt(damagePerMin, 1));
+    setText(this._els.statsKillsPerMin, killsPerMin == null ? "-" : fmt(killsPerMin, 1));
+    setText(this._els.statsCoinsPerMin, coinsPerMin == null ? "-" : fmt(coinsPerMin, 1));
+    setText(this._els.statsDamagePerWave, damagePerWave == null ? "-" : fmt(damagePerWave, 1));
+    setText(this._els.statsKillsPerWave, killsPerWave == null ? "-" : fmt(killsPerWave, 1));
+    setText(this._els.statsCoinsPerWave, coinsPerWave == null ? "-" : fmt(coinsPerWave, 1));
 
     const recentRuns = history.slice(0, 5);
     const recentCount = recentRuns.length;
@@ -1881,26 +2153,67 @@ export class UI {
     }
     setText(this._els.statsLastRun, lastRunText);
 
-    if (this._els.statsChart) {
-      this._els.statsChart.innerHTML = "";
-      const chartHistory = history.slice(0, 12).reverse();
-      const maxCoins = Math.max(1, ...chartHistory.map((h) => h.coins || 0));
-      if (!chartHistory.length) {
+    const chartHistory = history.slice(0, 12).reverse();
+    const renderChart = (el, values, options = {}) => {
+      if (!el) return;
+      el.innerHTML = "";
+      if (!values.length) {
         const empty = document.createElement("div");
         empty.className = "muted small";
         empty.textContent = "No runs recorded yet.";
-        this._els.statsChart.appendChild(empty);
-      } else {
-        for (const run of chartHistory) {
-          const bar = document.createElement("div");
-          bar.className = "stats-bar";
-          const height = Math.max(6, Math.round((Number(run.coins) || 0) / maxCoins * 120));
-          bar.style.height = `${height}px`;
-          bar.dataset.value = String(run.coins ?? 0);
-          this._els.statsChart.appendChild(bar);
-        }
+        el.appendChild(empty);
+        return;
       }
-    }
+      const max = Math.max(1, ...values.map((v) => v.value || 0));
+      const heightCap = options.height ?? 120;
+      for (const entry of values) {
+        const bar = document.createElement("div");
+        bar.className = `stats-bar ${entry.className || ""}`.trim();
+        const height = Math.max(6, Math.round((Number(entry.value) || 0) / max * heightCap));
+        bar.style.height = `${height}px`;
+        bar.dataset.value = entry.label ?? String(entry.value ?? 0);
+        el.appendChild(bar);
+      }
+    };
+
+    renderChart(
+      this._els.statsChartWaves,
+      chartHistory.map((run) => ({
+        value: Math.max(0, Math.round(run.waves || 0)),
+        label: String(run.waves ?? 0),
+        className: "waves",
+      })),
+      { height: 100 }
+    );
+    renderChart(
+      this._els.statsChartDamage,
+      chartHistory.map((run) => ({
+        value: Math.max(0, Math.round(run.damage || 0)),
+        label: formatBig(run.damage ?? 0),
+        className: "damage",
+      })),
+      { height: 100 }
+    );
+    renderChart(
+      this._els.statsChartTime,
+      chartHistory.map((run) => ({
+        value: Math.max(0, Math.round(run.time || 0)),
+        label: formatDuration(run.time ?? 0),
+        className: "time",
+      })),
+      { height: 100 }
+    );
+
+    const losses = Math.max(0, runs - victories);
+    renderPieChart(this._els.statsPie, [
+      { label: "Wins", value: victories, color: "rgba(56, 189, 248, 0.9)" },
+      { label: "Losses", value: losses, color: "rgba(244, 114, 182, 0.9)" },
+    ]);
+    renderLineChart(
+      this._els.statsLine,
+      chartHistory.map((run) => Math.max(0, Math.round(run.coins || 0))),
+      { color: "rgba(56, 189, 248, 0.9)", accent: "rgba(129, 140, 248, 0.9)" }
+    );
   }
 
   showTutorial() {
@@ -2429,6 +2742,19 @@ export class UI {
     });
   }
 
+  _bindThemes() {
+    if (!this._els.themeCards || !this._els.themeCards.length) return;
+    for (const card of this._els.themeCards) {
+      card.addEventListener("click", () => {
+        if (card.disabled || card.classList.contains("locked")) return;
+        const theme = String(card.dataset.themeChoice || "default");
+        this._settings.theme = theme;
+        this._applySettings();
+        this._syncThemeCards();
+      });
+    }
+  }
+
   _syncSettingsUi() {
     if (this._els.settingAutoWaves) this._els.settingAutoWaves.checked = Boolean(this._settings.autoStartWaves);
     if (this._els.settingKeepBuild) this._els.settingKeepBuild.checked = this._settings.keepBuildMode !== false;
@@ -2443,7 +2769,7 @@ export class UI {
       this._els.settingDisableAnimations.checked = Boolean(this._settings.disableUiAnimations);
     }
     if (this._els.settingCinematicUi) this._els.settingCinematicUi.checked = Boolean(this._settings.cinematicUi);
-    if (this._els.settingTheme) this._els.settingTheme.value = this._settings.theme || "default";
+    if (this._els.settingTheme) this._els.settingTheme.value = this._resolveTheme();
     if (this._els.settingShowGrid) this._els.settingShowGrid.checked = this._settings.showGrid !== false;
     if (this._els.settingShowDecor) this._els.settingShowDecor.checked = this._settings.showDecor !== false;
     if (this._els.settingShowPathGlow) this._els.settingShowPathGlow.checked = this._settings.showPathGlow !== false;
@@ -2455,6 +2781,30 @@ export class UI {
     if (this._els.settingShowStatusAuras) this._els.settingShowStatusAuras.checked = this._settings.showStatusAuras !== false;
     if (this._els.settingShowBossRings) this._els.settingShowBossRings.checked = this._settings.showBossRings !== false;
     if (this._els.settingShowBossBar) this._els.settingShowBossBar.checked = this._settings.showBossBar !== false;
+    this._syncThemeCards();
+  }
+
+  _syncThemeCards() {
+    if (!this._els.themeCards || !this._els.themeCards.length) return;
+    const current = this._resolveTheme();
+    for (const card of this._els.themeCards) {
+      const choice = String(card.dataset.themeChoice || "default");
+      const active = choice === current;
+      card.classList.toggle("active", active);
+      const status = card.querySelector(".theme-status");
+      if (status) status.textContent = active ? "Active" : "Apply";
+    }
+  }
+
+  _resolveTheme() {
+    const pref = String(this._settings?.theme || "default");
+    const safe = THEME_CHOICES.includes(pref) ? pref : "default";
+    return this._isFeatureUnlocked(FEATURE_IDS.THEME_PACK) ? safe : "default";
+  }
+
+  _resolveAppliedTheme() {
+    if (this._isDebugProfile(this._activeProfileId)) return "debug";
+    return this._resolveTheme();
   }
 
   _applySettings(logAuto = false) {
@@ -2463,8 +2813,8 @@ export class UI {
     if (this._game.world) this._game.world.settings = this._game.state.settings;
     if (document?.body) {
       document.body.classList.toggle("disable-animations", Boolean(this._settings.disableUiAnimations));
-      const theme = String(this._settings.theme || "default");
-      const themes = ["theme-ember", "theme-aurora", "theme-cinder"];
+      const theme = this._resolveAppliedTheme();
+      const themes = ["theme-ember", "theme-aurora", "theme-cinder", "theme-verdant", "theme-nebula", "theme-debug"];
       for (const cls of themes) document.body.classList.remove(cls);
       if (theme && theme !== "default") document.body.classList.add(`theme-${theme}`);
       const cinematic = Boolean(this._settings.cinematicUi) && this._game?.state?.mode === "playing";
@@ -2498,129 +2848,187 @@ export class UI {
     }
   }
 
-  _loadSaves() {
-    let payload = null;
+  _getActiveProfileId() {
     try {
-      const raw = window.localStorage?.getItem(SAVE_STORAGE_KEY);
-      if (raw) payload = JSON.parse(raw);
+      const stored = window.localStorage?.getItem(PROFILE_SLOT_KEY);
+      if (stored && PROFILE_SLOTS.some((slot) => slot.id === stored)) {
+        if (this._isDebugProfile(stored)) {
+          const lastReal = window.localStorage?.getItem(PROFILE_LAST_REAL_KEY);
+          if (lastReal && PROFILE_SLOTS.some((slot) => slot.id === lastReal) && !this._isDebugProfile(lastReal)) {
+            return lastReal;
+          }
+          return PROFILE_SLOTS[0].id;
+        }
+        return stored;
+      }
     } catch {
-      payload = null;
+      // Ignore storage errors.
     }
-    const list = Array.isArray(payload?.saves) ? payload.saves : [];
-    const saves = [];
-    for (const entry of list) {
-      const normalized = this._normalizeSaveEntry(entry);
-      if (normalized) saves.push(normalized);
-    }
-
-    const debugSave = this._buildDebugSave();
-    const debugIndex = saves.findIndex((save) => save.id === DEBUG_SAVE_ID);
-    if (debugIndex === -1) saves.unshift(debugSave);
-    else saves[debugIndex] = { ...debugSave, ...saves[debugIndex], profile: debugSave.profile };
-
-    saves.sort((a, b) => {
-      if (a.id === DEBUG_SAVE_ID) return -1;
-      if (b.id === DEBUG_SAVE_ID) return 1;
-      const at = a.updatedAt ?? a.createdAt ?? 0;
-      const bt = b.updatedAt ?? b.createdAt ?? 0;
-      return bt - at;
-    });
-
-    this._saveSaves(saves);
-    return saves;
+    return PROFILE_SLOTS[0].id;
   }
 
-  _saveSaves(saves) {
+  _setActiveProfileId(slotId) {
+    if (!slotId) return;
+    this._activeProfileId = slotId;
     try {
-      const clean = this._serializeSaves(saves);
-      window.localStorage?.setItem(SAVE_STORAGE_KEY, JSON.stringify({ version: 2, saves: clean }));
+      window.localStorage?.setItem(PROFILE_SLOT_KEY, slotId);
+      if (!this._isDebugProfile(slotId)) {
+        window.localStorage?.setItem(PROFILE_LAST_REAL_KEY, slotId);
+      }
     } catch {
       // Ignore storage errors.
     }
   }
 
-  _renderSavesScreen() {
+  _profileStorageKey(slotId) {
+    return `${PROFILE_STORAGE_PREFIX}${slotId}`;
+  }
+
+  _ensureActiveProfile() {
+    const slotId = this._getActiveProfileId();
+    this._activeProfileId = slotId;
+    const storageKey = this._profileStorageKey(slotId);
+    const isDebug = this._isDebugProfile(slotId);
+    if (this._progression?.setPersistence) {
+      this._progression.setPersistence(!isDebug);
+    }
+    if (this._progression?.setStorageKey) {
+      this._progression.setStorageKey(storageKey);
+    }
+    this._applyProfileOverrides(slotId);
+    this._syncCoins();
+  }
+
+  _readProfileSnapshot(slotId) {
+    if (this._isDebugProfile(slotId)) {
+      return {
+        coins: Number.POSITIVE_INFINITY,
+        unlocked: this._buildDebugUnlocks(),
+      };
+    }
+    const defaults = defaultUnlocks();
+    const fallback = {
+      coins: 0,
+      unlocked: defaults,
+    };
+    try {
+      const raw = window.localStorage?.getItem(this._profileStorageKey(slotId));
+      if (!raw) return fallback;
+      const payload = JSON.parse(raw);
+      const coinsRaw = payload?.coins;
+      const coins = coinsRaw === "inf" ? Number.POSITIVE_INFINITY : Number.parseInt(coinsRaw, 10);
+      const unlocked = Array.isArray(payload?.unlocked)
+        ? payload.unlocked.filter((id) => typeof id === "string" && id)
+        : defaults;
+      return {
+        coins: Number.isFinite(coins) ? Math.max(0, coins) : 0,
+        unlocked,
+      };
+    } catch {
+      return fallback;
+    }
+  }
+
+  _isDebugProfile(slotId) {
+    return slotId === DEBUG_PROFILE_ID;
+  }
+
+  _buildDebugUnlocks() {
+    const unlocks = new Set();
+    const towerDefs = this._data?.towerDefs || {};
+    for (const id of Object.keys(towerDefs)) unlocks.add(towerUnlockKey(id));
+    for (const map of this._data?.mapDefs || []) {
+      if (map?.id) unlocks.add(mapUnlockKey(map.id));
+    }
+    for (const mode of this._data?.modeDefs || []) {
+      if (mode?.id) unlocks.add(modeUnlockKey(mode.id));
+    }
+    for (const mod of this._data?.modifierDefs || []) {
+      if (mod?.id) unlocks.add(modifierUnlockKey(mod.id));
+    }
+    for (const featureId of Object.values(FEATURE_IDS)) {
+      unlocks.add(featureUnlockKey(featureId));
+    }
+    return [...unlocks];
+  }
+
+  _getPaidUnlockSet() {
+    const ids = this._shop?.getPaidUnlockIds?.() || [];
+    return new Set(ids);
+  }
+
+  _loadProfiles() {
+    return PROFILE_SLOTS.map((slot) => {
+      const snapshot = this._readProfileSnapshot(slot.id);
+      return {
+        id: slot.id,
+        name: slot.name,
+        coins: snapshot.coins ?? 0,
+        unlockedCount: Array.isArray(snapshot.unlocked) ? snapshot.unlocked.length : defaultUnlocks().length,
+        isActive: slot.id === this._activeProfileId,
+      };
+    });
+  }
+
+  _renderProfiles() {
     if (!this._els.savesList) return;
     const list = this._els.savesList;
     list.innerHTML = "";
     if (this._els.savesStatus) this._els.savesStatus.textContent = "";
-    if (this._els.saveRunBtn) {
-      this._els.saveRunBtn.disabled = this._game?.state?.mode !== "playing";
-    }
-    const saves = Array.isArray(this._saves) ? this._saves : [];
-    if (!saves.length) {
-      const empty = document.createElement("div");
-      empty.className = "save-empty";
-      empty.textContent = "No save files yet. Manual saves will appear here.";
-      list.appendChild(empty);
-      return;
-    }
-    for (const save of saves) {
+    this._profiles = this._loadProfiles();
+    for (const profile of this._profiles) {
       const card = document.createElement("div");
       card.className = "save-card";
+      if (this._isDebugProfile(profile.id)) card.classList.add("debug");
 
       const meta = document.createElement("div");
       meta.className = "save-meta";
       const title = document.createElement("div");
       title.className = "save-title";
-      title.textContent = save.name || "Untitled Save";
+      title.textContent = profile.name;
       meta.appendChild(title);
+
+      if (this._isDebugProfile(profile.id)) {
+        const tags = document.createElement("div");
+        tags.className = "save-tags";
+        const tag = document.createElement("span");
+        tag.className = "save-tag debug";
+        tag.textContent = "Debug";
+        tags.appendChild(tag);
+        meta.appendChild(tags);
+      }
 
       const coinLine = document.createElement("div");
       coinLine.className = "save-sub";
-      const coins = save.profile?.coins ?? null;
-      const coinValue = coins == null ? "—" : this._formatCoinCount(coins);
-      coinLine.textContent = `Shop coins: ${coinValue}`;
+      coinLine.textContent = `Coins: ${this._formatCoinCount(profile.coins)}`;
       meta.appendChild(coinLine);
 
-      if (save.runState) {
-        const runLine = document.createElement("div");
-        runLine.className = "save-sub";
-        const runMap = save.runState?.map?.name || save.runState?.map?.id || "Unknown map";
-        const runMode = save.runState?.mode?.name || save.runState?.mode?.id || "Unknown mode";
-        const wave = Number.isFinite(save.runState?.state?.waveNumber) ? save.runState.state.waveNumber : 0;
-        const inWave = Boolean(save.runState?.state?.inWave);
-        const waveLabel = inWave ? `Wave ${wave + 1}` : `Cleared ${wave}`;
-        runLine.textContent = `${runMap} · ${runMode} · ${waveLabel}`;
-        meta.appendChild(runLine);
-      }
+      const unlockLine = document.createElement("div");
+      unlockLine.className = "save-sub";
+      unlockLine.textContent = `Unlocked: ${profile.unlockedCount}`;
+      meta.appendChild(unlockLine);
 
-      if (save.note) {
+      if (this._isDebugProfile(profile.id)) {
         const note = document.createElement("div");
-        note.className = "save-sub";
-        note.textContent = save.note;
+        note.className = "save-sub debug";
+        note.textContent = "Progress does not save in Debug.";
         meta.appendChild(note);
-      }
 
-      if (Array.isArray(save.tags) && save.tags.length) {
-        const tags = document.createElement("div");
-        tags.className = "save-tags";
-        for (const tag of save.tags) {
-          const chip = document.createElement("span");
-          chip.className = "save-tag";
-          chip.textContent = tag;
-          tags.appendChild(chip);
-        }
-        meta.appendChild(tags);
+        const themeNote = document.createElement("div");
+        themeNote.className = "save-sub debug";
+        themeNote.textContent = "Theme locked to Debug.";
+        meta.appendChild(themeNote);
       }
 
       const actions = document.createElement("div");
       actions.className = "save-actions";
-      const loadBtn = document.createElement("button");
-      loadBtn.className = "ghost";
-      loadBtn.type = "button";
-      loadBtn.dataset.saveLoad = save.id;
-      loadBtn.textContent = "Load";
-      actions.appendChild(loadBtn);
-
-      if (!save.locked) {
-        const delBtn = document.createElement("button");
-        delBtn.className = "ghost danger";
-        delBtn.type = "button";
-        delBtn.dataset.saveDelete = save.id;
-        delBtn.textContent = "Delete";
-        actions.appendChild(delBtn);
-      }
+      const switchBtn = document.createElement("button");
+      switchBtn.className = profile.isActive ? "ghost" : "primary";
+      switchBtn.type = "button";
+      switchBtn.dataset.profileSwitch = profile.id;
+      switchBtn.textContent = profile.isActive ? "Active" : "Switch";
+      switchBtn.disabled = profile.isActive;
+      actions.appendChild(switchBtn);
 
       card.appendChild(meta);
       card.appendChild(actions);
@@ -2634,318 +3042,47 @@ export class UI {
     this._els.savesStatus.classList.toggle("danger", type === "error");
   }
 
-  _applySave(saveId) {
-    if (!saveId) return;
-    const save = (this._saves || []).find((entry) => entry.id === saveId);
-    if (!save) {
-      this._setSavesStatus("Save not found.", "error");
-      return;
+  _switchProfile(slotId) {
+    if (!slotId || !PROFILE_SLOTS.some((slot) => slot.id === slotId)) return;
+    if (slotId === this._activeProfileId) return;
+    this._setActiveProfileId(slotId);
+    const isDebug = this._isDebugProfile(slotId);
+    if (this._progression?.setPersistence) {
+      this._progression.setPersistence(!isDebug);
     }
-    if (save.profile && this._progression) {
-      if (typeof this._progression.importSnapshot === "function") {
-        this._progression.importSnapshot(save.profile);
-      } else if (save.profile.coins != null) {
-        if (typeof this._progression.setCoins === "function") this._progression.setCoins(save.profile.coins);
-        else {
-          this._progression.coins = Math.max(0, Math.round(save.profile.coins));
-          this._progression._persist?.();
-        }
-      }
+    if (this._progression?.setStorageKey) {
+      this._progression.setStorageKey(this._profileStorageKey(slotId));
     }
-
-    let loadedRun = false;
-    if (save.runState && this._game?.importRunState) {
-      const ok = this._game.importRunState(save.runState);
-      loadedRun = Boolean(ok);
-      if (!ok) {
-        this._setSavesStatus("Failed to load run state. Save may be incompatible.", "error");
-        return;
-      }
-    }
-
+    this._applyProfileOverrides(slotId);
+    this._applyUnlockState();
     this._syncCoins();
     this._buildShop();
-    if (loadedRun) {
-      this._savesOverlay.pausedBefore = null;
-      this._els.gameOver?.classList.add("hidden");
-      this._els.gameOver?.classList.remove("victory");
-      if (this._els.titleScreen) this._els.titleScreen.classList.add("hidden");
-      if (this._els.setupScreen) this._els.setupScreen.classList.add("hidden");
-      this._setStartMenuOpen(false);
-      this.refreshPaletteCosts();
-      this._refreshAdminPaths();
-      this._hideSavesScreen(false);
+    this._resetToMenuForProfileSwitch();
+    this._renderProfiles();
+    const label = PROFILE_SLOTS.find((slot) => slot.id === slotId)?.name || "Profile";
+    this._setSavesStatus(`Switched to ${label}.`, "info");
+  }
+
+  _applyProfileOverrides(slotId) {
+    if (!this._progression) return;
+    if (!this._isDebugProfile(slotId)) return;
+    this._progression.resetToDefaults?.();
+    this._progression.setCoins(Number.POSITIVE_INFINITY);
+    this._progression.unlockMany(this._buildDebugUnlocks());
+  }
+
+  _resetToMenuForProfileSwitch() {
+    if (this._game?.state) {
+      this._game.state.mode = "menu";
+      this._game.state.paused = false;
+      this._game.state.inWave = false;
+      this._game.state.pendingVictory = null;
     }
-    this._setSavesStatus(`Loaded "${save.name}".`, "info");
-  }
-
-  _normalizeSaveEntry(entry, { allowMissingId = false } = {}) {
-    if (!entry || typeof entry !== "object") return null;
-    const id = typeof entry.id === "string" ? entry.id.trim() : "";
-    const finalId = id || (allowMissingId ? this._makeSaveId() : "");
-    if (!finalId || finalId === DEBUG_SAVE_ID) return null;
-    const name = typeof entry.name === "string" && entry.name.trim() ? entry.name.trim() : id;
-    const type =
-      typeof entry.type === "string" && entry.type.trim()
-        ? entry.type.trim()
-        : entry.runState
-          ? SAVE_TYPE_RUN
-          : SAVE_TYPE_PROFILE;
-    const profileRaw = entry.profile && typeof entry.profile === "object" ? entry.profile : null;
-    const coinsRaw = profileRaw?.coins ?? entry.coins;
-    const coins = Number.isFinite(coinsRaw) ? Math.max(0, Math.round(coinsRaw)) : null;
-    const unlockedRaw = profileRaw?.unlocked ?? entry.unlocked;
-    const unlocked = Array.isArray(unlockedRaw)
-      ? unlockedRaw.filter((id) => typeof id === "string" && id.trim())
-      : null;
-    const stats = profileRaw?.stats && typeof profileRaw.stats === "object" ? profileRaw.stats : null;
-    const profile = coins != null || unlocked || stats ? { coins, unlocked, stats } : null;
-    const runState = entry.runState && typeof entry.runState === "object" ? entry.runState : null;
-    const createdAt = Number.isFinite(entry.createdAt) ? entry.createdAt : null;
-    const updatedAt = Number.isFinite(entry.updatedAt) ? entry.updatedAt : createdAt;
-    const tags = Array.isArray(entry.tags)
-      ? entry.tags
-          .filter((tag) => typeof tag === "string" && tag.trim())
-          .map((tag) => tag.trim())
-      : [];
-    const note = typeof entry.note === "string" ? entry.note : "";
-    const locked = Boolean(entry.locked);
-    return { id: finalId, name: name || finalId, type, profile, runState, tags, note, createdAt, updatedAt, locked };
-  }
-
-  _serializeSaves(saves) {
-    return (saves || []).map((save) => ({
-      id: save.id,
-      name: save.name,
-      type: save.type,
-      profile: save.profile,
-      runState: save.runState,
-      tags: save.tags,
-      note: save.note,
-      createdAt: save.createdAt ?? null,
-      updatedAt: save.updatedAt ?? null,
-      locked: save.locked ?? false,
-    }));
-  }
-
-  _exportSavesJson() {
-    const saves = (this._saves || []).filter((save) => save.id !== DEBUG_SAVE_ID);
-    if (!saves.length) {
-      this._setSavesStatus("No saves to export.", "error");
-      return;
-    }
-    const payload = {
-      version: 2,
-      exportedAt: Date.now(),
-      saves: this._serializeSaves(saves),
-    };
-    const json = JSON.stringify(payload, null, 2);
-    const blob = new Blob([json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `td_saves_${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    this._setSavesStatus(`Exported ${saves.length} save${saves.length === 1 ? "" : "s"}.`, "info");
-  }
-
-  _importSavesJson(event) {
-    const input = event?.target;
-    const file = input?.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const parsed = JSON.parse(reader.result);
-        const list = Array.isArray(parsed) ? parsed : parsed?.saves;
-        if (!Array.isArray(list)) {
-          this._setSavesStatus("Invalid save file format.", "error");
-          return;
-        }
-        this._mergeImportedSaves(list);
-      } catch {
-        this._setSavesStatus("Failed to read save file.", "error");
-      } finally {
-        if (input) input.value = "";
-      }
-    };
-    reader.onerror = () => {
-      this._setSavesStatus("Failed to read save file.", "error");
-      if (input) input.value = "";
-    };
-    reader.readAsText(file);
-  }
-
-  _mergeImportedSaves(list) {
-    const existing = Array.isArray(this._saves) ? [...this._saves] : [];
-    const ids = new Set(existing.map((save) => save.id));
-    let imported = 0;
-    for (const entry of list) {
-      const normalized = this._normalizeSaveEntry(entry, { allowMissingId: true });
-      if (!normalized) continue;
-      let id = normalized.id;
-      if (ids.has(id)) {
-        id = this._makeSaveId();
-        normalized.id = id;
-      }
-      normalized.createdAt = normalized.createdAt ?? Date.now();
-      normalized.updatedAt = Date.now();
-      existing.push(normalized);
-      ids.add(id);
-      imported += 1;
-    }
-    if (!imported) {
-      this._setSavesStatus("No valid saves found to import.", "error");
-      return;
-    }
-    this._saves = existing;
-    this._persistSaves();
-    this._renderSavesScreen();
-    this._setSavesStatus(`Imported ${imported} save${imported === 1 ? "" : "s"}.`, "info");
-  }
-
-  _saveRunSnapshot() {
-    if (!this._game?.exportRunState) {
-      this._setSavesStatus("Run saving not available.", "error");
-      return;
-    }
-    if (this._game?.state?.mode !== "playing") {
-      this._setSavesStatus("Start a run before saving.", "error");
-      return;
-    }
-    const runState = this._game.exportRunState();
-    if (!runState) {
-      this._setSavesStatus("No active run to save.", "error");
-      return;
-    }
-    const profile = this._progression?.exportSnapshot ? this._progression.exportSnapshot() : null;
-    const name = this._getSaveName() || this._suggestSaveName();
-    const save = {
-      id: this._makeSaveId(),
-      name,
-      type: SAVE_TYPE_RUN,
-      profile,
-      runState,
-      tags: ["run"],
-      note: "Run snapshot.",
-    };
-    const { created } = this._upsertSave(save);
-    if (this._els.saveNameInput) this._els.saveNameInput.value = "";
-    this._setSavesStatus(created ? `Saved "${name}".` : `Updated "${name}".`, "info");
-  }
-
-  _saveProfileSnapshot() {
-    if (!this._progression) {
-      this._setSavesStatus("Profile saving not available.", "error");
-      return;
-    }
-    const profile = this._progression.exportSnapshot
-      ? this._progression.exportSnapshot()
-      : { coins: this._progression.coins };
-    const name = this._getSaveName() || `Profile ${new Date().toLocaleString()}`;
-    const save = {
-      id: this._makeSaveId(),
-      name,
-      type: SAVE_TYPE_PROFILE,
-      profile,
-      tags: ["profile"],
-      note: "Profile snapshot.",
-    };
-    const { created } = this._upsertSave(save);
-    if (this._els.saveNameInput) this._els.saveNameInput.value = "";
-    this._setSavesStatus(created ? `Saved "${name}".` : `Updated "${name}".`, "info");
-  }
-
-  _deleteSave(saveId) {
-    if (!saveId) return;
-    const target = (this._saves || []).find((save) => save.id === saveId);
-    if (!target || target.locked) return;
-    if (!window.confirm(`Delete "${target.name}"? This cannot be undone.`)) return;
-    this._saves = (this._saves || []).filter((save) => save.id !== saveId);
-    this._persistSaves();
-    this._renderSavesScreen();
-    this._setSavesStatus(`Deleted "${target.name}".`, "info");
-  }
-
-  _getSaveName() {
-    const raw = this._els.saveNameInput?.value ?? "";
-    const name = String(raw).trim();
-    return name || "";
-  }
-
-  _suggestSaveName() {
-    const mapName = this._game?.map?.name || this._game?.map?.id || "";
-    const modeName = this._game?.modeDef?.name || this._game?.modeDef?.id || "";
-    if (!mapName || !modeName) return `Save ${new Date().toLocaleString()}`;
-    const wave = Number.isFinite(this._game?.state?.waveNumber) ? this._game.state.waveNumber : 0;
-    const inWave = Boolean(this._game?.state?.inWave);
-    const waveLabel = inWave ? `Wave ${wave + 1}` : `Cleared ${wave}`;
-    return `${mapName} · ${modeName} · ${waveLabel}`;
-  }
-
-  _makeSaveId() {
-    const rand = Math.random().toString(36).slice(2, 7);
-    return `save_${Date.now()}_${rand}`;
-  }
-
-  _upsertSave(save) {
-    if (!save || !save.name) return { created: false };
-    const now = Date.now();
-    const list = Array.isArray(this._saves) ? [...this._saves] : [];
-    const idx = list.findIndex(
-      (entry) => entry.name === save.name && entry.type === save.type && entry.id !== DEBUG_SAVE_ID
-    );
-    if (idx >= 0 && !list[idx].locked) {
-      list[idx] = {
-        ...list[idx],
-        ...save,
-        id: list[idx].id,
-        createdAt: list[idx].createdAt ?? now,
-        updatedAt: now,
-      };
-      this._saves = list;
-      this._persistSaves();
-      this._renderSavesScreen();
-      return { created: false };
-    }
-    const entry = {
-      ...save,
-      createdAt: now,
-      updatedAt: now,
-    };
-    list.push(entry);
-    this._saves = list;
-    this._persistSaves();
-    this._renderSavesScreen();
-    return { created: true };
-  }
-
-  _persistSaves() {
-    const debug = (this._saves || []).find((save) => save.id === DEBUG_SAVE_ID);
-    if (!debug) this._saves.unshift(this._buildDebugSave());
-    this._saves.sort((a, b) => {
-      if (a.id === DEBUG_SAVE_ID) return -1;
-      if (b.id === DEBUG_SAVE_ID) return 1;
-      const at = a.updatedAt ?? a.createdAt ?? 0;
-      const bt = b.updatedAt ?? b.createdAt ?? 0;
-      return bt - at;
-    });
-    this._saveSaves(this._saves);
-  }
-
-  _buildDebugSave() {
-    return {
-      id: DEBUG_SAVE_ID,
-      name: "Debug: Infinite Coins",
-      type: SAVE_TYPE_DEBUG,
-      profile: { coins: DEBUG_SAVE_COINS },
-      tags: ["debug"],
-      note: "Shop coins set to infinite for testing.",
-      locked: true,
-    };
+    this._els.gameOver?.classList.add("hidden");
+    this._els.gameOver?.classList.remove("victory");
+    if (this._els.setupScreen) this._els.setupScreen.classList.add("hidden");
+    if (this._els.titleScreen) this._els.titleScreen.classList.remove("hidden");
+    this._setStartMenuOpen(true);
   }
 
   _shiftCoachmark(delta) {
@@ -6693,6 +6830,144 @@ function formatDuration(seconds = 0) {
   const secs = total % 60;
   if (hrs > 0) return `${hrs}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
   return `${mins}:${String(secs).padStart(2, "0")}`;
+}
+
+function setupCanvas(canvas) {
+  if (!canvas) return null;
+  const rect = canvas.getBoundingClientRect();
+  if (!rect.width || !rect.height) return null;
+  const dpr = window.devicePixelRatio || 1;
+  const width = Math.max(1, Math.round(rect.width * dpr));
+  const height = Math.max(1, Math.round(rect.height * dpr));
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
+  }
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, rect.width, rect.height);
+  return { ctx, width: rect.width, height: rect.height };
+}
+
+function renderPieChart(canvas, segments = []) {
+  const setup = setupCanvas(canvas);
+  if (!setup) return;
+  const { ctx, width, height } = setup;
+  const total = segments.reduce((sum, seg) => sum + Math.max(0, seg.value || 0), 0);
+  if (!total) {
+    ctx.fillStyle = "rgba(231, 236, 255, 0.55)";
+    ctx.font = "12px ui-sans-serif, system-ui";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("No data yet", width / 2, height / 2);
+    return;
+  }
+  const cx = width / 2;
+  const cy = height / 2;
+  const radius = Math.min(width, height) * 0.38;
+  const innerRadius = radius * 0.58;
+  let angle = -Math.PI / 2;
+  for (const seg of segments) {
+    const value = Math.max(0, seg.value || 0);
+    if (!value) continue;
+    const slice = (value / total) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, radius, angle, angle + slice);
+    ctx.closePath();
+    ctx.fillStyle = seg.color || "rgba(56, 189, 248, 0.9)";
+    ctx.fill();
+    angle += slice;
+  }
+  ctx.beginPath();
+  ctx.arc(cx, cy, innerRadius, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(12, 16, 32, 0.9)";
+  ctx.fill();
+
+  const wins = segments[0]?.value || 0;
+  const winRate = total ? Math.round((wins / total) * 100) : 0;
+  ctx.fillStyle = "rgba(231, 236, 255, 0.92)";
+  ctx.font = "600 16px ui-sans-serif, system-ui";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(`${winRate}%`, cx, cy - 6);
+  ctx.fillStyle = "rgba(231, 236, 255, 0.6)";
+  ctx.font = "11px ui-sans-serif, system-ui";
+  ctx.fillText("win rate", cx, cy + 12);
+}
+
+function renderLineChart(canvas, values = [], options = {}) {
+  const setup = setupCanvas(canvas);
+  if (!setup) return;
+  const { ctx, width, height } = setup;
+  if (!values || values.length < 2) {
+    ctx.fillStyle = "rgba(231, 236, 255, 0.55)";
+    ctx.font = "12px ui-sans-serif, system-ui";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("Not enough runs", width / 2, height / 2);
+    return;
+  }
+  const padding = { top: 16, right: 30, bottom: 18, left: 14 };
+  const chartW = width - padding.left - padding.right;
+  const chartH = height - padding.top - padding.bottom;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = Math.max(1, max - min);
+
+  ctx.strokeStyle = "rgba(148, 163, 184, 0.2)";
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 3; i++) {
+    const y = padding.top + (chartH / 2) * i;
+    ctx.beginPath();
+    ctx.moveTo(padding.left, y);
+    ctx.lineTo(width - padding.right, y);
+    ctx.stroke();
+  }
+
+  const points = values.map((val, idx) => {
+    const x = padding.left + (idx / (values.length - 1)) * chartW;
+    const y = padding.top + (1 - (val - min) / span) * chartH;
+    return { x, y, val };
+  });
+
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
+  ctx.strokeStyle = options.color || "rgba(56, 189, 248, 0.9)";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.strokeStyle = options.accent || "rgba(129, 140, 248, 0.9)";
+  ctx.fillStyle = "rgba(56, 189, 248, 0.25)";
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, height - padding.bottom);
+  for (const p of points) ctx.lineTo(p.x, p.y);
+  ctx.lineTo(points[points.length - 1].x, height - padding.bottom);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = options.color || "rgba(56, 189, 248, 0.9)";
+  for (const p of points) {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  const formatValue = (value) => Math.round(value).toLocaleString();
+  const labels = [
+    { value: max, y: padding.top },
+    { value: (max + min) / 2, y: padding.top + chartH / 2 },
+    { value: min, y: padding.top + chartH },
+  ];
+  ctx.fillStyle = "rgba(231, 236, 255, 0.6)";
+  ctx.font = "10px ui-sans-serif, system-ui";
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  for (const label of labels) {
+    ctx.fillText(formatValue(label.value), width - 2, label.y);
+  }
 }
 
 function getPrimaryDamageType(def, statsOverride = null) {

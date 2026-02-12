@@ -6,6 +6,7 @@ import { GameState } from "./game/GameState.js";
 import { Input } from "./input/Input.js";
 import { Progression } from "./meta/Progression.js";
 import { Shop } from "./meta/Shop.js";
+import { FEATURE_IDS, featureUnlockKey } from "./meta/unlocks.js";
 import { UI } from "./ui/UI.js";
 
 const canvas = document.getElementById("game-canvas");
@@ -31,8 +32,39 @@ rng.reset = (nextSeed = seed, calls = 0) => {
   for (let i = 0; i < safeCalls; i++) rng();
 };
 const state = new GameState({ seed });
-const progression = new Progression();
+const PROFILE_SLOT_KEY = "td_profile_slot_v1";
+const PROFILE_LAST_REAL_KEY = "td_profile_slot_last_real_v1";
+const PROFILE_STORAGE_PREFIX = "td_profile_v1_";
+const profileSlots = new Set(["slot-1", "slot-2", "slot-3", "slot-4"]);
+let activeSlot = "slot-1";
+let promptProfiles = false;
+try {
+  const stored = window.localStorage?.getItem(PROFILE_SLOT_KEY);
+  if (stored && profileSlots.has(stored)) {
+    if (stored === "slot-4") {
+      promptProfiles = true;
+      const lastReal = window.localStorage?.getItem(PROFILE_LAST_REAL_KEY);
+      if (lastReal && profileSlots.has(lastReal) && lastReal !== "slot-4") activeSlot = lastReal;
+      window.localStorage?.setItem(PROFILE_SLOT_KEY, activeSlot);
+    } else {
+      activeSlot = stored;
+    }
+  } else {
+    window.localStorage?.setItem(PROFILE_SLOT_KEY, activeSlot);
+  }
+  if (activeSlot !== "slot-4") window.localStorage?.setItem(PROFILE_LAST_REAL_KEY, activeSlot);
+} catch {
+  // Ignore storage errors.
+}
+const isDebugSlot = activeSlot === "slot-4";
+const progression = new Progression({ storageKey: `${PROFILE_STORAGE_PREFIX}${activeSlot}`, persist: !isDebugSlot });
 const shop = new Shop({ data: DATA, progression });
+const unlockThemes = params.get("unlockThemes") === "1";
+const themeParam = params.get("theme");
+
+if (navigator.webdriver && unlockThemes) {
+  progression.unlock(featureUnlockKey(FEATURE_IDS.THEME_PACK));
+}
 
 if (navigator.webdriver && uiCapture) {
   for (const el of document.querySelectorAll("canvas")) {
@@ -46,6 +78,20 @@ const game = new Game({ canvas, bossCanvas, input, data: DATA, rng, state, ui: n
 const ui = new UI({ data: DATA, game, progression, shop });
 game.ui = ui;
 ui.init();
+
+if (promptProfiles && ui?._showProfileSelectScreen) {
+  ui._showProfileSelectScreen();
+}
+
+if (navigator.webdriver && themeParam) {
+  const theme = String(themeParam || "default").toLowerCase();
+  const allowed = new Set(["default", "ember", "aurora", "cinder", "verdant", "nebula"]);
+  if (allowed.has(theme)) {
+    ui._settings.theme = theme;
+    ui._applySettings();
+    ui._syncThemeCards();
+  }
+}
 
 // Debug hooks for automated testing (Playwright) and local dev.
 // Not required for gameplay, but useful for verifying boss bars, upgrades, etc.

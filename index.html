@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TowerDefenseGPT</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="./style.css?v=20260211a" />
+    <link rel="stylesheet" href="./style.css?v=20260211ae" />
   </head>
   <body>
     <div id="layout">
@@ -40,7 +40,7 @@
                   <button id="tutorial-btn" class="ghost corner-btn">Tutorial</button>
                   <button id="settings-open" class="ghost corner-btn" type="button">Settings</button>
                   <button id="themes-open" class="ghost corner-btn" type="button">Themes</button>
-                  <button id="saves-open" class="ghost corner-btn" type="button">Saves Manager</button>
+                  <button id="saves-open" class="ghost corner-btn" type="button">Profiles</button>
                 </div>
               </div>
             </div>
@@ -263,15 +263,6 @@
                 <input id="setting-cinematic-ui" type="checkbox" />
                 <span>Cinematic UI (hide HUD)</span>
               </label>
-              <label class="setting-item">
-                <select id="setting-theme">
-                  <option value="default">Default</option>
-                  <option value="ember">Ember</option>
-                  <option value="aurora">Aurora</option>
-                  <option value="cinder">Cinder</option>
-                </select>
-                <span>Theme palette</span>
-              </label>
               <div class="settings-subtitle">HUD</div>
               <label class="setting-item">
                 <input id="setting-show-grid" type="checkbox" />
@@ -329,25 +320,116 @@
           </div>
         </div>
 
+        <div id="themes-screen" class="overlay hidden">
+          <div class="panel themes-panel">
+            <div class="themes-header">
+              <div>
+                <h2>Themes</h2>
+                <p class="muted small">Swap the command deck palette to match your mood.</p>
+              </div>
+              <button id="themes-close" class="ghost" type="button">Close</button>
+            </div>
+            <div class="themes-grid">
+              <button class="theme-card" data-theme-choice="default" type="button">
+                <div class="theme-card-top">
+                  <span class="theme-name">Default</span>
+                  <span class="theme-status">Active</span>
+                </div>
+                <div class="theme-swatches">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+                <div class="theme-desc muted small">Classic command blues.</div>
+              </button>
+              <button class="theme-card" data-theme-choice="ember" type="button">
+                <div class="theme-card-top">
+                  <span class="theme-name">Ember</span>
+                  <span class="theme-status">Active</span>
+                </div>
+                <div class="theme-swatches">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+                <div class="theme-desc muted small">Warm alerts and molten glow.</div>
+              </button>
+              <button class="theme-card" data-theme-choice="aurora" type="button">
+                <div class="theme-card-top">
+                  <span class="theme-name">Aurora</span>
+                  <span class="theme-status">Active</span>
+                </div>
+                <div class="theme-swatches">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+                <div class="theme-desc muted small">Icy teal signals and calm UI.</div>
+              </button>
+              <button class="theme-card" data-theme-choice="cinder" type="button">
+                <div class="theme-card-top">
+                  <span class="theme-name">Cinder</span>
+                  <span class="theme-status">Active</span>
+                </div>
+                <div class="theme-swatches">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+                <div class="theme-desc muted small">Void black with neon accents.</div>
+              </button>
+              <button class="theme-card" data-theme-choice="verdant" type="button">
+                <div class="theme-card-top">
+                  <span class="theme-name">Verdant</span>
+                  <span class="theme-status">Active</span>
+                </div>
+                <div class="theme-swatches">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+                <div class="theme-desc muted small">Botanic greens with bright growth.</div>
+              </button>
+              <button class="theme-card" data-theme-choice="nebula" type="button">
+                <div class="theme-card-top">
+                  <span class="theme-name">Nebula</span>
+                  <span class="theme-status">Active</span>
+                </div>
+                <div class="theme-swatches">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+                <div class="theme-desc muted small">Cosmic magenta with starlit blues.</div>
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div id="saves-screen" class="overlay hidden">
           <div class="panel saves-panel">
             <div class="saves-header">
               <div>
-                <h2>Saves Manager</h2>
-                <p class="muted small">Manage save files and debug profiles.</p>
+                <h2>Profiles</h2>
+                <p class="muted small">Switch between progression profiles.</p>
               </div>
               <button id="saves-close" class="ghost" type="button">Close</button>
             </div>
-            <div class="saves-toolbar">
-              <input id="save-name-input" class="ghost" type="text" placeholder="Save name" />
-              <button id="save-run-btn" class="primary" type="button">Save Run</button>
-              <button id="save-profile-btn" class="ghost" type="button">Save Profile</button>
-              <button id="export-saves-btn" class="ghost" type="button">Export JSON</button>
-              <button id="import-saves-btn" class="ghost" type="button">Import JSON</button>
-              <input id="import-saves-input" class="hidden" type="file" accept="application/json,.json" />
-            </div>
             <div id="saves-status" class="muted small"></div>
             <div id="saves-list" class="saves-list"></div>
+          </div>
+        </div>
+
+        <div id="profile-select-screen" class="overlay hidden">
+          <div class="panel profile-select-panel">
+            <div class="profile-select-header">
+              <div class="profile-select-title-group">
+                <div class="profile-select-kicker">Profile Select</div>
+                <h2>Choose Your Profile</h2>
+                <p class="muted small">Select a save slot to continue.</p>
+              </div>
+            </div>
+            <div id="profile-select-list" class="profile-select-grid"></div>
           </div>
         </div>
 
@@ -457,6 +539,35 @@
                 </div>
               </div>
               <div class="stats-section">
+                <div class="stats-section-title">Efficiency</div>
+                <div class="stats-grid stats-grid-advanced">
+                  <div class="stats-cell">
+                    <span class="label">Damage / Min</span>
+                    <span id="stats-damage-per-min" class="value">-</span>
+                  </div>
+                  <div class="stats-cell">
+                    <span class="label">Kills / Min</span>
+                    <span id="stats-kills-per-min" class="value">-</span>
+                  </div>
+                  <div class="stats-cell">
+                    <span class="label">Coins / Min</span>
+                    <span id="stats-coins-per-min" class="value">-</span>
+                  </div>
+                  <div class="stats-cell">
+                    <span class="label">Damage / Wave</span>
+                    <span id="stats-damage-per-wave" class="value">-</span>
+                  </div>
+                  <div class="stats-cell">
+                    <span class="label">Kills / Wave</span>
+                    <span id="stats-kills-per-wave" class="value">-</span>
+                  </div>
+                  <div class="stats-cell">
+                    <span class="label">Coins / Wave</span>
+                    <span id="stats-coins-per-wave" class="value">-</span>
+                  </div>
+                </div>
+              </div>
+              <div class="stats-section">
                 <div class="stats-section-title">Recent Form (Last 5 Runs)</div>
                 <div class="stats-grid stats-grid-advanced">
                   <div class="stats-cell">
@@ -482,9 +593,32 @@
                   </div>
                 </div>
               </div>
-              <div class="stats-chart-wrap">
-                <div class="stats-chart-title">Recent Runs</div>
-                <div id="stats-chart" class="stats-chart"></div>
+              <div class="stats-section">
+                <div class="stats-section-title">Visual Trends</div>
+                <div class="stats-chart-grid">
+                  <div class="stats-chart-wrap">
+                    <div class="stats-chart-title">Win/Loss Split</div>
+                    <canvas id="stats-pie" class="stats-canvas" aria-label="Win loss pie chart"></canvas>
+                  </div>
+                  <div class="stats-chart-wrap">
+                    <div class="stats-chart-title">Coins Trend</div>
+                    <canvas id="stats-line" class="stats-canvas" aria-label="Coins line graph"></canvas>
+                  </div>
+                </div>
+              </div>
+              <div class="stats-chart-grid">
+                <div class="stats-chart-wrap">
+                  <div class="stats-chart-title">Recent Waves</div>
+                  <div id="stats-chart-waves" class="stats-chart compact"></div>
+                </div>
+                <div class="stats-chart-wrap">
+                  <div class="stats-chart-title">Recent Damage</div>
+                  <div id="stats-chart-damage" class="stats-chart compact"></div>
+                </div>
+                <div class="stats-chart-wrap">
+                  <div class="stats-chart-title">Recent Duration</div>
+                  <div id="stats-chart-time" class="stats-chart compact"></div>
+                </div>
               </div>
             </div>
           </div>
@@ -1228,7 +1362,7 @@
         <section class="card">
           <h3>Help</h3>
           <button id="tutorial-btn-alt" class="ghost">Open Tutorial (H)</button>
-          <button id="saves-open-alt" class="ghost">Saves Manager</button>
+          <button id="saves-open-alt" class="ghost">Profiles</button>
           <div class="help-keys">
             <div class="kbd">
               <span>Click</span>
@@ -1288,6 +1422,6 @@
       </aside>
     </div>
 
-    <script type="module" src="./src/main.js?v=20260211a"></script>
+    <script type="module" src="./src/main.js?v=20260211k"></script>
   </body>
 </html>

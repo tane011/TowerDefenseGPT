@@ -35,6 +35,18 @@ export class Shop {
     }));
   }
 
+  getPaidUnlockIds() {
+    const ids = new Set();
+    for (const item of this._catalog?.items || []) {
+      if (!item || item.cost <= 0) continue;
+      const grants = Array.isArray(item.grants) && item.grants.length ? item.grants : [item.id];
+      for (const id of grants) {
+        if (id) ids.add(id);
+      }
+    }
+    return [...ids];
+  }
+
   getItem(unlockId) {
     return this._index?.get(unlockId) || null;
   }

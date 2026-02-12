@@ -1012,3 +1012,60 @@ Notes (2026-02-11):
 
 Tests (2026-02-11):
 - Playwright: `node $WEB_GAME_CLIENT --url "http://127.0.0.1:5173?uiCapture=1" --actions-file $WEB_GAME_ACTIONS --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-themes-pill`
+
+Notes (2026-02-11):
+- Moved Themes into its own overlay (separate from Settings). Themes pill now opens the Themes menu; cards apply theme immediately and persist. Locked behavior routes to Shop.
+
+Tests (2026-02-11):
+- Playwright: `node $WEB_GAME_CLIENT --url "http://127.0.0.1:5173?uiCapture=1&unlockThemes=1" --actions-file $WEB_GAME_ACTIONS --click-selector "#themes-open" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-themes-menu`
+
+Notes (2026-02-11):
+- Theme system now drives shared UI variables (`--panel`, `--panel-2`, `--panel-3`, `--accent`), so switching themes actually recolors panels, buttons, tabs, and cards.
+- Added two more themes: Verdant and Nebula.
+
+Tests (2026-02-11):
+- Playwright: `node $WEB_GAME_CLIENT --url "http://127.0.0.1:5173?uiCapture=1&unlockThemes=1&theme=nebula" --actions-file $WEB_GAME_ACTIONS --click-selector "#themes-open" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-themes-nebula`
+- Playwright: `node $WEB_GAME_CLIENT --url "http://127.0.0.1:5173?uiCapture=1&unlockThemes=1&theme=verdant" --actions-file $WEB_GAME_ACTIONS --click-selector "#themes-open" --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-themes-verdant`
+
+Notes (2026-02-11):
+- Refined startup profile picker UI: header kicker, card gradients, highlight bar, stat box styling, badges, and CTA separation for a cleaner, more premium layout.
+- Added richer save meta in the picker (win rate, totals) and a more structured stat grid.
+
+Tests (2026-02-11):
+- Playwright: `node $WEB_GAME_CLIENT --url "http://127.0.0.1:5173?uiCapture=1" --actions-file $WEB_GAME_ACTIONS --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-profile-select-ui-2`
+
+Notes (2026-02-11):
+- Profile picker stats now stretch to fill the cards; added subtle ruled lines and accent glow to occupy vertical space cleanly.
+
+Tests (2026-02-11):
+- Playwright: `node $WEB_GAME_CLIENT --url "http://127.0.0.1:5173?uiCapture=1" --actions-file $WEB_GAME_ACTIONS --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-profile-select-ui-3`
+
+Notes (2026-02-11):
+- Added animated ambient artwork per profile card to make the profile picker feel more alive, plus hover lift for a bit of depth.
+
+Tests (2026-02-11):
+- Playwright: `node $WEB_GAME_CLIENT --url "http://127.0.0.1:5173?uiCapture=1" --actions-file $WEB_GAME_ACTIONS --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-profile-select-ui-4`
+
+Notes (2026-02-11):
+- Replaced ambient background art with a data-driven visual block per profile: win-rate ring + unlock progress summary and mini stats.
+
+Tests (2026-02-11):
+- Playwright: `node $WEB_GAME_CLIENT --url "http://127.0.0.1:5173?uiCapture=1" --actions-file $WEB_GAME_ACTIONS --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-profile-select-ui-5`
+
+Notes (2026-02-11):
+- Profile picker visual ring now represents unlock progress; mini “Progress” line shows win-rate decimal. CTA button spans full card width.
+
+Tests (2026-02-11):
+- Playwright: `node $WEB_GAME_CLIENT --url "http://127.0.0.1:5173?uiCapture=1" --actions-file $WEB_GAME_ACTIONS --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-profile-select-ui-6`
+
+Notes (2026-02-11):
+- Progress ring now measures paid unlocks only (free items excluded). Mini “Progress” stat shows win rate as a decimal. Paid unlock total derives from shop catalog grants.
+
+Tests (2026-02-11):
+- Playwright: `node $WEB_GAME_CLIENT --url "http://127.0.0.1:5173?uiCapture=1" --actions-file $WEB_GAME_ACTIONS --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-profile-select-ui-7`
+
+Notes (2026-02-11):
+- Continue button now uses a distinct teal-blue gradient to stand apart from Select.
+
+Tests (2026-02-11):
+- Playwright: `node $WEB_GAME_CLIENT --url "http://127.0.0.1:5173?uiCapture=1" --actions-file $WEB_GAME_ACTIONS --iterations 1 --pause-ms 300 --screenshot-dir output/web-game-profile-select-ui-8`

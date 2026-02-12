@@ -39,9 +39,10 @@ function writeStorage(key, value) {
 }
 
 export class Progression {
-  constructor({ storageKey = STORAGE_KEY, defaults = defaultUnlocks() } = {}) {
+  constructor({ storageKey = STORAGE_KEY, defaults = defaultUnlocks(), persist = true } = {}) {
     this._storageKey = storageKey;
     this._defaults = new Set(defaults);
+    this._persistEnabled = persist !== false;
     this.coins = 0;
     this.unlocked = new Set(defaults);
     this.stats = { ...DEFAULT_STATS };
@@ -53,8 +54,13 @@ export class Progression {
     if (raw) {
       try {
         const payload = JSON.parse(raw);
-        const coins = Number.parseInt(payload?.coins, 10);
-        this.coins = Number.isFinite(coins) ? Math.max(0, coins) : 0;
+        const coinsRaw = payload?.coins;
+        if (coinsRaw === "inf") {
+          this.coins = Number.POSITIVE_INFINITY;
+        } else {
+          const coins = Number.parseInt(coinsRaw, 10);
+          this.coins = Number.isFinite(coins) ? Math.max(0, coins) : 0;
+        }
         this.unlocked = new Set(this._defaults);
         if (Array.isArray(payload?.unlocked)) {
           for (const id of payload.unlocked) {
@@ -67,14 +73,19 @@ export class Progression {
         this.unlocked = new Set(this._defaults);
         this.stats = { ...DEFAULT_STATS };
       }
+    } else {
+      this.coins = 0;
+      this.unlocked = new Set(this._defaults);
+      this.stats = { ...DEFAULT_STATS };
     }
     this._persist();
   }
 
   _persist() {
+    if (!this._persistEnabled) return;
     const payload = {
       version: VERSION,
-      coins: this.coins,
+      coins: Number.isFinite(this.coins) ? this.coins : "inf",
       unlocked: [...this.unlocked],
       stats: this.stats,
     };
@@ -83,16 +94,31 @@ export class Progression {
 
   exportSnapshot() {
     return {
-      coins: this.coins,
+      coins: Number.isFinite(this.coins) ? this.coins : "inf",
       unlocked: [...this.unlocked],
       stats: this.stats,
     };
   }
 
+  setStorageKey(storageKey) {
+    if (!storageKey || storageKey === this._storageKey) return false;
+    this._storageKey = storageKey;
+    this.load();
+    return true;
+  }
+
+  setPersistence(enabled = true) {
+    this._persistEnabled = Boolean(enabled);
+    return this._persistEnabled;
+  }
+
   importSnapshot(snapshot) {
     if (!snapshot || typeof snapshot !== "object") return false;
     let changed = false;
-    if (Number.isFinite(snapshot.coins)) {
+    if (snapshot.coins === "inf" || snapshot.coins === Infinity) {
+      this.coins = Number.POSITIVE_INFINITY;
+      changed = true;
+    } else if (Number.isFinite(snapshot.coins)) {
       this.coins = Math.max(0, Math.round(snapshot.coins));
       changed = true;
     }
@@ -111,15 +137,29 @@ export class Progression {
     return changed;
   }
 
+  resetToDefaults() {
+    this.coins = 0;
+    this.unlocked = new Set(this._defaults);
+    this.stats = { ...DEFAULT_STATS };
+    this._persist();
+  }
+
   setCoins(amount) {
     const value = Number(amount);
-    if (!Number.isFinite(value)) return this.coins;
+    if (!Number.isFinite(value)) {
+      if (amount === "inf" || amount === Infinity) {
+        this.coins = Number.POSITIVE_INFINITY;
+        this._persist();
+      }
+      return this.coins;
+    }
     this.coins = Math.max(0, Math.round(value));
     this._persist();
     return this.coins;
   }
 
   addCoins(amount) {
+    if (!Number.isFinite(this.coins)) return this.coins;
     const delta = Math.max(0, Math.round(amount || 0));
     if (!delta) return this.coins;
     this.coins = Math.max(0, Math.round(this.coins + delta));
@@ -128,6 +168,7 @@ export class Progression {
   }
 
   spendCoins(amount) {
+    if (!Number.isFinite(this.coins)) return true;
     const cost = Math.max(0, Math.round(amount || 0));
     if (!cost || this.coins < cost) return false;
     this.coins = Math.max(0, Math.round(this.coins - cost));
