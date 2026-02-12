@@ -2,7 +2,7 @@
   "name": "tower-defense-gpt",
   "private": true,
   "type": "module",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "main": "electron/main.cjs",
   "scripts": {
     "start": "node scripts/start.mjs",
@@ -34,12 +34,14 @@
       "hardenedRuntime": true,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.inherit.plist",
+      "artifactName": "${productName}-${version}-mac-unsigned-${arch}.${ext}",
       "target": [
         "dmg",
         "zip"
       ]
     },
     "win": {
+      "artifactName": "${productName}-${version}-win-unsigned-${arch}.${ext}",
       "target": [
         "nsis",
         "zip"
