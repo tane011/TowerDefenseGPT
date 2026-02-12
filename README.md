@@ -46,6 +46,12 @@ Steps:
 3. In GitHub: Settings → Pages → Source: “GitHub Actions”.
 4. The Actions workflow will publish the site and provide the URL.
 
+## Cloud saves (Firebase)
+
+Cloud saves are available via Firebase Auth + Firestore.
+
+Setup guide: `FIREBASE_SETUP.md`
+
 ## Controls
 
 - Click a tower in the Build panel, then click a build tile to place it.

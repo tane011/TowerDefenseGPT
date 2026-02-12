@@ -6,6 +6,7 @@ import { GameState } from "./game/GameState.js";
 import { Input } from "./input/Input.js";
 import { Progression } from "./meta/Progression.js";
 import { Shop } from "./meta/Shop.js";
+import { CloudSave } from "./meta/cloud/CloudSave.js";
 import { FEATURE_IDS, featureUnlockKey } from "./meta/unlocks.js";
 import { UI } from "./ui/UI.js";
 
@@ -60,6 +61,13 @@ try {
 const isDebugSlot = activeSlot === "slot-4";
 const progression = new Progression({ storageKey: `${PROFILE_STORAGE_PREFIX}${activeSlot}`, persist: !isDebugSlot });
 const shop = new Shop({ data: DATA, progression });
+let ui = null;
+const cloud = new CloudSave({
+  getSnapshot: () => ui?.exportCloudSnapshot?.(),
+  applySnapshot: (snapshot) => ui?.applyCloudSnapshot?.(snapshot),
+  onStatusChange: (status) => ui?._syncCloudStatus?.(status),
+});
+cloud.init();
 const unlockThemes = params.get("unlockThemes") === "1";
 const themeParam = params.get("theme");
 
@@ -76,9 +84,11 @@ if (navigator.webdriver && uiCapture) {
 }
 
 const game = new Game({ canvas, bossCanvas, input, data: DATA, rng, state, ui: null, unlocks: shop });
-const ui = new UI({ data: DATA, game, progression, shop });
+ui = new UI({ data: DATA, game, progression, shop, cloud });
 game.ui = ui;
 ui.init();
+
+progression.setOnPersist(() => cloud.scheduleSave("progression"));
 
 if (loadingScreen) {
   let dismissed = false;

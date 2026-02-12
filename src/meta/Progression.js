@@ -43,6 +43,7 @@ export class Progression {
     this._storageKey = storageKey;
     this._defaults = new Set(defaults);
     this._persistEnabled = persist !== false;
+    this._onPersist = null;
     this.coins = 0;
     this.unlocked = new Set(defaults);
     this.stats = { ...DEFAULT_STATS };
@@ -90,6 +91,9 @@ export class Progression {
       stats: this.stats,
     };
     writeStorage(this._storageKey, JSON.stringify(payload));
+    if (typeof this._onPersist === "function") {
+      this._onPersist(payload);
+    }
   }
 
   exportSnapshot() {
@@ -110,6 +114,10 @@ export class Progression {
   setPersistence(enabled = true) {
     this._persistEnabled = Boolean(enabled);
     return this._persistEnabled;
+  }
+
+  setOnPersist(handler) {
+    this._onPersist = typeof handler === "function" ? handler : null;
   }
 
   importSnapshot(snapshot) {

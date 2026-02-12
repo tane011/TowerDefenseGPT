@@ -246,11 +246,12 @@ const MAP_TOOL = {
 };
 
 export class UI {
-  constructor({ data, game, progression, shop }) {
+  constructor({ data, game, progression, shop, cloud }) {
     this._data = data;
     this._game = game;
     this._progression = progression;
     this._shop = shop;
+    this._cloud = cloud || null;
 
     this._els = {
       titleScreen: document.getElementById("title-screen"),
@@ -507,6 +508,20 @@ export class UI {
       settingShowBossBar: document.getElementById("setting-show-boss-bar"),
       settingResetDefaults: document.getElementById("setting-reset-defaults"),
       settingResetCoachmarks: document.getElementById("setting-reset-coachmarks"),
+      cloudStatus: document.getElementById("cloud-status"),
+      cloudLastSync: document.getElementById("cloud-last-sync"),
+      cloudSigninGoogle: document.getElementById("cloud-signin-google"),
+      cloudSigninEmail: document.getElementById("cloud-signin-email"),
+      cloudSignout: document.getElementById("cloud-signout"),
+      cloudSave: document.getElementById("cloud-save"),
+      cloudLoad: document.getElementById("cloud-load"),
+      cloudAuthScreen: document.getElementById("cloud-auth-screen"),
+      cloudAuthClose: document.getElementById("cloud-auth-close"),
+      cloudAuthEmail: document.getElementById("cloud-auth-email"),
+      cloudAuthPassword: document.getElementById("cloud-auth-password"),
+      cloudAuthLogin: document.getElementById("cloud-auth-login"),
+      cloudAuthCreate: document.getElementById("cloud-auth-create"),
+      cloudAuthError: document.getElementById("cloud-auth-error"),
 
       money: document.getElementById("stat-money"),
       lives: document.getElementById("stat-lives"),
@@ -718,6 +733,7 @@ export class UI {
 
     // Settings.
     this._bindSettings();
+    this._bindCloud();
     this._bindThemes();
     this._syncSettingsUi();
     this._applySettings();
@@ -2742,6 +2758,182 @@ export class UI {
     });
   }
 
+  _bindCloud() {
+    if (this._cloudBound) return;
+    this._cloudBound = true;
+    if (!this._cloud) {
+      this._syncCloudStatus({ enabled: false, signedIn: false, message: "Cloud saves unavailable." });
+      return;
+    }
+    if (this._cloud.setStatusHandler) {
+      this._cloud.setStatusHandler((status) => this._syncCloudStatus(status));
+    }
+    const status = this._cloud.getStatus?.() || null;
+    if (status) this._syncCloudStatus(status);
+
+    this._els.cloudSigninGoogle?.addEventListener("click", () => this._cloud.signInWithGoogle?.());
+    this._els.cloudSigninEmail?.addEventListener("click", () => this._showCloudAuth());
+    this._els.cloudSignout?.addEventListener("click", () => this._cloud.signOut?.());
+    this._els.cloudSave?.addEventListener("click", () => this._cloud.uploadNow?.());
+    this._els.cloudLoad?.addEventListener("click", () => this._cloud.downloadNow?.());
+
+    this._els.cloudAuthClose?.addEventListener("click", () => this._hideCloudAuth());
+    this._els.cloudAuthScreen?.addEventListener("click", (event) => {
+      if (event.target === this._els.cloudAuthScreen) this._hideCloudAuth();
+    });
+    const submitEmail = (mode) => {
+      const email = String(this._els.cloudAuthEmail?.value || "").trim();
+      const password = String(this._els.cloudAuthPassword?.value || "");
+      if (!email || !password) {
+        this._setCloudAuthError("Email and password are required.");
+        return;
+      }
+      this._setCloudAuthError("");
+      if (mode === "create") this._cloud.createAccount?.(email, password);
+      else this._cloud.signInWithEmail?.(email, password);
+    };
+    this._els.cloudAuthLogin?.addEventListener("click", () => submitEmail("login"));
+    this._els.cloudAuthCreate?.addEventListener("click", () => submitEmail("create"));
+  }
+
+  setCloud(cloud) {
+    this._cloud = cloud || null;
+    this._cloudBound = false;
+    this._bindCloud();
+  }
+
+  _showCloudAuth() {
+    if (this._els.cloudAuthScreen) this._els.cloudAuthScreen.classList.remove("hidden");
+    this._setCloudAuthError("");
+    if (this._els.cloudAuthEmail) this._els.cloudAuthEmail.focus();
+  }
+
+  _hideCloudAuth() {
+    if (this._els.cloudAuthScreen) this._els.cloudAuthScreen.classList.add("hidden");
+  }
+
+  _setCloudAuthError(message = "") {
+    if (!this._els.cloudAuthError) return;
+    this._els.cloudAuthError.textContent = message || "";
+  }
+
+  _syncCloudStatus(status) {
+    if (!this._els.cloudStatus) return;
+    if (!status || !status.enabled) {
+      this._els.cloudStatus.textContent = status?.message || "Cloud saves unavailable.";
+      if (this._els.cloudLastSync) this._els.cloudLastSync.textContent = "";
+      if (this._els.cloudSigninGoogle) this._els.cloudSigninGoogle.disabled = true;
+      if (this._els.cloudSigninEmail) this._els.cloudSigninEmail.disabled = true;
+      if (this._els.cloudSignout) this._els.cloudSignout.disabled = true;
+      if (this._els.cloudSave) this._els.cloudSave.disabled = true;
+      if (this._els.cloudLoad) this._els.cloudLoad.disabled = true;
+      return;
+    }
+    if (status.signedIn) {
+      const name = status.userName || status.userEmail || "Signed in";
+      this._els.cloudStatus.textContent = `Signed in as ${name}.`;
+      this._hideCloudAuth();
+    } else {
+      this._els.cloudStatus.textContent = "Not signed in.";
+    }
+    if (this._els.cloudLastSync) {
+      if (status.lastSyncAt) {
+        const stamp = new Date(status.lastSyncAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+        this._els.cloudLastSync.textContent = `Last sync: ${stamp}`;
+      } else {
+        this._els.cloudLastSync.textContent = "";
+      }
+    }
+    if (status.message) {
+      this._els.cloudLastSync.textContent = status.message;
+    }
+    if (this._els.cloudSigninGoogle) this._els.cloudSigninGoogle.disabled = status.signedIn || status.busy;
+    if (this._els.cloudSigninEmail) this._els.cloudSigninEmail.disabled = status.signedIn || status.busy;
+    if (this._els.cloudSignout) this._els.cloudSignout.disabled = !status.signedIn || status.busy;
+    if (this._els.cloudSave) this._els.cloudSave.disabled = !status.signedIn || status.busy;
+    if (this._els.cloudLoad) this._els.cloudLoad.disabled = !status.signedIn || status.busy;
+  }
+
+  exportCloudSnapshot() {
+    const snapshot = {
+      version: 1,
+      activeSlot: this._getActiveProfileId(),
+      profiles: {},
+      settings: JSON.parse(JSON.stringify(this._settings || {})),
+      customModes: JSON.parse(JSON.stringify(this._customModes || [])),
+      customMaps: JSON.parse(JSON.stringify(this._customMaps || [])),
+      coachmarksSeen: window.localStorage?.getItem("td_coachmarks_seen_v1") === "1",
+    };
+    for (const slot of PROFILE_SLOTS) {
+      if (this._isDebugProfile(slot.id)) continue;
+      try {
+        const raw = window.localStorage?.getItem(this._profileStorageKey(slot.id));
+        if (raw) snapshot.profiles[slot.id] = JSON.parse(raw);
+      } catch {
+        // Ignore malformed slot data.
+      }
+    }
+    return snapshot;
+  }
+
+  applyCloudSnapshot(snapshot) {
+    if (!snapshot || typeof snapshot !== "object") return false;
+    const profiles = snapshot.profiles && typeof snapshot.profiles === "object" ? snapshot.profiles : {};
+    for (const slot of PROFILE_SLOTS) {
+      if (this._isDebugProfile(slot.id)) continue;
+      const payload = profiles[slot.id];
+      if (!payload) continue;
+      try {
+        window.localStorage?.setItem(this._profileStorageKey(slot.id), JSON.stringify(payload));
+      } catch {
+        // Ignore storage errors.
+      }
+    }
+    if (snapshot.settings && typeof snapshot.settings === "object") {
+      this._settings = { ...DEFAULT_SETTINGS, ...snapshot.settings };
+      this._saveSettings();
+      this._syncSettingsUi();
+      this._applySettings();
+    }
+    if (Array.isArray(snapshot.customModes)) {
+      try {
+        window.localStorage?.setItem("td_custom_modes_v1", JSON.stringify(snapshot.customModes));
+      } catch {
+        // Ignore storage errors.
+      }
+      this._customModes = this._loadCustomModes();
+      this._refreshModeDefs();
+      this._buildModeSelect();
+      this._syncCustomModeCount();
+      this._populateCustomModeSelects();
+      this._syncModeDescription();
+    }
+    if (Array.isArray(snapshot.customMaps)) {
+      try {
+        window.localStorage?.setItem("td_custom_maps_v1", JSON.stringify(snapshot.customMaps));
+      } catch {
+        // Ignore storage errors.
+      }
+      this._customMaps = this._loadCustomMaps();
+      this._refreshMapDefs();
+      this._buildMapSelect();
+      this._syncCustomMapCount();
+      this._populateCustomMapSelects();
+      this._syncMapPreview();
+    }
+    if (snapshot.coachmarksSeen) {
+      window.localStorage?.setItem("td_coachmarks_seen_v1", "1");
+    }
+    if (snapshot.activeSlot) {
+      this._setActiveProfileId(snapshot.activeSlot);
+    }
+    this._ensureActiveProfile();
+    this._profiles = this._loadProfiles();
+    this._renderProfiles();
+    this._buildShop();
+    return true;
+  }
+
   _bindThemes() {
     if (!this._els.themeCards || !this._els.themeCards.length) return;
     for (const card of this._els.themeCards) {
@@ -2846,6 +3038,7 @@ export class UI {
     } catch {
       // Ignore storage errors.
     }
+    this._cloud?.scheduleSave?.("settings");
   }
 
   _getActiveProfileId() {
@@ -4073,6 +4266,7 @@ export class UI {
     } catch (err) {
       console.warn("Failed to save custom modes", err);
     }
+    this._cloud?.scheduleSave?.("custom-modes");
   }
 
   _refreshModeDefs() {
@@ -4895,6 +5089,7 @@ export class UI {
     } catch (err) {
       console.warn("Failed to save custom maps", err);
     }
+    this._cloud?.scheduleSave?.("custom-maps");
   }
 
   _refreshMapDefs() {

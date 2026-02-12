@@ -316,6 +316,18 @@
                 <input id="setting-show-boss-bar" type="checkbox" />
                 <span>Show boss bar</span>
               </label>
+              <div class="settings-subtitle">Cloud</div>
+              <div id="cloud-status" class="muted small cloud-status">Cloud saves unavailable.</div>
+              <div class="cloud-actions">
+                <button id="cloud-signin-google" class="ghost" type="button">Sign in with Google</button>
+                <button id="cloud-signin-email" class="ghost" type="button">Email / Password</button>
+                <button id="cloud-signout" class="ghost" type="button">Sign out</button>
+              </div>
+              <div class="cloud-actions">
+                <button id="cloud-save" class="ghost" type="button">Save to Cloud</button>
+                <button id="cloud-load" class="ghost" type="button">Load from Cloud</button>
+              </div>
+              <div id="cloud-last-sync" class="muted small cloud-status"></div>
               <label class="setting-item">
                 <input id="setting-reset-defaults" type="button" />
                 <span>Reset settings to defaults</span>
@@ -438,6 +450,33 @@
               </div>
             </div>
             <div id="profile-select-list" class="profile-select-grid"></div>
+          </div>
+        </div>
+
+        <div id="cloud-auth-screen" class="overlay hidden">
+          <div class="panel cloud-auth-panel">
+            <div class="cloud-auth-header">
+              <div>
+                <h2>Cloud Sign In</h2>
+                <p class="muted small">Use email/password or Google to sync saves.</p>
+              </div>
+              <button id="cloud-auth-close" class="ghost" type="button">Close</button>
+            </div>
+            <div class="cloud-auth-form">
+              <label class="cloud-auth-field">
+                <span>Email</span>
+                <input id="cloud-auth-email" type="email" placeholder="you@example.com" />
+              </label>
+              <label class="cloud-auth-field">
+                <span>Password</span>
+                <input id="cloud-auth-password" type="password" placeholder="••••••••" />
+              </label>
+              <div id="cloud-auth-error" class="muted small cloud-auth-error"></div>
+              <div class="cloud-auth-actions">
+                <button id="cloud-auth-login" class="primary" type="button">Sign in</button>
+                <button id="cloud-auth-create" class="ghost" type="button">Create account</button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1430,6 +1469,11 @@
       </aside>
     </div>
 
+    <script>
+      window.__tdBuildHash = "__BUILD_HASH__";
+      // Paste your Firebase config here (see FIREBASE_SETUP.md).
+      window.__tdFirebaseConfig = window.__tdFirebaseConfig || null;
+    </script>
     <script type="module" src="./src/main.js?v=__BUILD_HASH__"></script>
   </body>
 </html>
