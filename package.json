@@ -2,11 +2,45 @@
   "name": "tower-defense-gpt",
   "private": true,
   "type": "module",
+  "version": "1.0.0",
+  "main": "electron/main.cjs",
   "scripts": {
     "start": "node scripts/start.mjs",
-    "start:open": "node scripts/start.mjs --open"
+    "start:open": "node scripts/start.mjs --open",
+    "electron:dev": "electron .",
+    "electron:build": "electron-builder --publish never",
+    "release": "electron-builder --publish always"
   },
   "devDependencies": {
+    "electron": "^31.3.1",
+    "electron-builder": "^24.13.3",
     "playwright": "^1.58.2"
+  },
+  "build": {
+    "appId": "com.towerdefensegpt.app",
+    "productName": "TowerDefenseGPT",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "electron/**",
+      "index.html",
+      "style.css",
+      "favicon.ico",
+      "src/**",
+      "package.json"
+    ],
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "zip"
+      ]
+    }
   }
 }
