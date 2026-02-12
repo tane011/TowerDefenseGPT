@@ -36,6 +36,16 @@ Then open:
 http://127.0.0.1:5173
 ```
 
+## Publish (GitHub Pages)
+
+This repo is configured to auto-deploy the site to GitHub Pages on every push to `main`.
+
+Steps:
+1. Create a GitHub repo and add it as a remote.
+2. Push to `main`.
+3. In GitHub: Settings → Pages → Source: “GitHub Actions”.
+4. The Actions workflow will publish the site and provide the URL.
+
 ## Controls
 
 - Click a tower in the Build panel, then click a build tile to place it.
