@@ -3707,11 +3707,79 @@ button[disabled] {
 }
 
 .cloud-auth-panel {
-  width: min(520px, calc(100% - 24px));
+  width: min(920px, calc(100% - 24px));
 }
 
 #cloud-auth-screen {
   z-index: 12;
+}
+
+.auth-dialog-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0;
+  overflow: hidden;
+  width: 100%;
+  max-width: none;
+}
+
+.auth-dialog-art {
+  padding: 22px 24px;
+  background:
+    radial-gradient(320px 220px at 70% 20%, rgba(var(--accent-rgb), 0.25), transparent 60%),
+    linear-gradient(145deg, rgba(15, 20, 38, 0.95), rgba(9, 13, 26, 0.75));
+  border-right: 1px solid rgba(231, 236, 255, 0.12);
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.auth-dialog-kicker {
+  font-size: 11px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: rgba(var(--accent-rgb), 0.85);
+}
+
+.auth-dialog-title {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.auth-dialog-copy {
+  font-size: 12.5px;
+}
+
+.auth-dialog-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.auth-dialog-badges span {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(231, 236, 255, 0.12);
+  background: rgba(12, 18, 34, 0.75);
+}
+
+.auth-dialog-divider {
+  height: 1px;
+  background: rgba(231, 236, 255, 0.12);
+  margin: 4px 0;
+}
+
+.auth-dialog-hint {
+  font-size: 11px;
+}
+
+.auth-dialog-form {
+  padding: 22px 24px;
+  display: grid;
+  gap: 12px;
 }
 
 .cloud-auth-header {
@@ -3755,13 +3823,120 @@ button[disabled] {
 
 .auth-gate {
   z-index: 10;
+  background:
+    radial-gradient(600px 360px at 20% 20%, rgba(var(--accent-rgb), 0.16), transparent 60%),
+    radial-gradient(520px 340px at 80% 30%, rgba(var(--accent-2-rgb), 0.14), transparent 60%),
+    rgba(7, 10, 20, 0.88);
+}
+
+.auth-gate-shell {
+  width: min(980px, calc(100% - 28px));
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+  gap: 18px;
+  align-items: stretch;
+}
+
+.auth-gate-art {
+  padding: 22px 24px;
+  border-radius: 20px;
+  border: 1px solid rgba(231, 236, 255, 0.16);
+  background:
+    linear-gradient(135deg, rgba(14, 18, 34, 0.95), rgba(10, 14, 28, 0.7)),
+    radial-gradient(380px 240px at 70% 0%, rgba(var(--accent-rgb), 0.22), transparent 60%);
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  position: relative;
+  overflow: hidden;
+}
+
+.auth-gate-art::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(
+      180deg,
+      rgba(148, 163, 184, 0.06) 0px,
+      rgba(148, 163, 184, 0.06) 1px,
+      transparent 1px,
+      transparent 26px
+    );
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.auth-gate-kicker {
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: rgba(var(--accent-rgb), 0.9);
+}
+
+.auth-gate-title {
+  font-family: "Orbitron", sans-serif;
+  font-size: 28px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.auth-gate-tagline {
+  font-size: 13px;
+  color: rgba(231, 236, 255, 0.7);
+}
+
+.auth-gate-pill {
+  justify-self: start;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--accent-rgb), 0.45);
+  background: rgba(var(--accent-rgb), 0.12);
+  color: rgba(231, 236, 255, 0.9);
+}
+
+.auth-gate-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.auth-gate-card {
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(231, 236, 255, 0.12);
+  background: rgba(12, 18, 34, 0.7);
+}
+
+.auth-gate-card-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: rgba(231, 236, 255, 0.55);
+}
+
+.auth-gate-card-value {
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(231, 236, 255, 0.9);
 }
 
 .auth-gate-panel {
-  width: min(520px, calc(100% - 24px));
-  text-align: center;
+  text-align: left;
   display: grid;
   gap: 12px;
+  padding: 22px 24px;
+  border-radius: 20px;
+  border: 1px solid rgba(231, 236, 255, 0.18);
+  background: rgba(10, 14, 28, 0.88);
+  box-shadow: 0 20px 50px rgba(5, 8, 18, 0.5);
+  width: 100%;
+  max-width: none;
 }
 
 .auth-gate-header h2 {
@@ -3776,6 +3951,26 @@ button[disabled] {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.auth-gate-foot {
+  font-size: 11px;
+}
+
+@media (max-width: 900px) {
+  .auth-gate-shell {
+    grid-template-columns: 1fr;
+  }
+  .auth-gate-grid {
+    grid-template-columns: 1fr;
+  }
+  .auth-dialog-panel {
+    grid-template-columns: 1fr;
+  }
+  .auth-dialog-art {
+    border-right: none;
+    border-bottom: 1px solid rgba(231, 236, 255, 0.12);
+  }
 }
 
 .row {
