@@ -3749,6 +3749,31 @@ button[disabled] {
   color: var(--danger);
 }
 
+.auth-gate {
+  z-index: 10;
+}
+
+.auth-gate-panel {
+  width: min(520px, calc(100% - 24px));
+  text-align: center;
+  display: grid;
+  gap: 12px;
+}
+
+.auth-gate-header h2 {
+  margin-bottom: 4px;
+}
+
+.auth-gate-status {
+  min-height: 18px;
+}
+
+.auth-gate-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .row {
   display: flex;
   align-items: center;

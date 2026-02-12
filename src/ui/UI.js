@@ -522,6 +522,10 @@ export class UI {
       cloudAuthLogin: document.getElementById("cloud-auth-login"),
       cloudAuthCreate: document.getElementById("cloud-auth-create"),
       cloudAuthError: document.getElementById("cloud-auth-error"),
+      authGate: document.getElementById("auth-gate"),
+      authGateStatus: document.getElementById("auth-gate-status"),
+      authGateGoogle: document.getElementById("auth-gate-google"),
+      authGateEmail: document.getElementById("auth-gate-email"),
 
       money: document.getElementById("stat-money"),
       lives: document.getElementById("stat-lives"),
@@ -2777,6 +2781,9 @@ export class UI {
     this._els.cloudSave?.addEventListener("click", () => this._cloud.uploadNow?.());
     this._els.cloudLoad?.addEventListener("click", () => this._cloud.downloadNow?.());
 
+    this._els.authGateGoogle?.addEventListener("click", () => this._cloud.signInWithGoogle?.());
+    this._els.authGateEmail?.addEventListener("click", () => this._showCloudAuth());
+
     this._els.cloudAuthClose?.addEventListener("click", () => this._hideCloudAuth());
     this._els.cloudAuthScreen?.addEventListener("click", (event) => {
       if (event.target === this._els.cloudAuthScreen) this._hideCloudAuth();
@@ -2827,6 +2834,7 @@ export class UI {
       if (this._els.cloudSignout) this._els.cloudSignout.disabled = true;
       if (this._els.cloudSave) this._els.cloudSave.disabled = true;
       if (this._els.cloudLoad) this._els.cloudLoad.disabled = true;
+      this._applyAuthGate(status);
       return;
     }
     if (status.signedIn) {
@@ -2852,6 +2860,28 @@ export class UI {
     if (this._els.cloudSignout) this._els.cloudSignout.disabled = !status.signedIn || status.busy;
     if (this._els.cloudSave) this._els.cloudSave.disabled = !status.signedIn || status.busy;
     if (this._els.cloudLoad) this._els.cloudLoad.disabled = !status.signedIn || status.busy;
+    this._applyAuthGate(status);
+  }
+
+  _applyAuthGate(status) {
+    if (!this._els.authGate) return;
+    if (!status || !status.enabled) {
+      this._els.authGate.classList.remove("hidden");
+      if (this._els.authGateStatus) {
+        this._els.authGateStatus.textContent = status?.message || "Cloud saves unavailable. Configure Firebase to continue.";
+      }
+      if (this._els.authGateGoogle) this._els.authGateGoogle.disabled = true;
+      if (this._els.authGateEmail) this._els.authGateEmail.disabled = true;
+      return;
+    }
+    if (status.signedIn) {
+      this._els.authGate.classList.add("hidden");
+      return;
+    }
+    this._els.authGate.classList.remove("hidden");
+    if (this._els.authGateStatus) this._els.authGateStatus.textContent = "Sign in to access the game.";
+    if (this._els.authGateGoogle) this._els.authGateGoogle.disabled = status.busy;
+    if (this._els.authGateEmail) this._els.authGateEmail.disabled = status.busy;
   }
 
   exportCloudSnapshot() {
